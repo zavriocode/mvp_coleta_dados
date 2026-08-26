@@ -225,7 +225,7 @@ function CadastroManual() {
             <fieldset className="grade-filtros" disabled={enviando || carregandoEdicao}>
               <CampoFormulario id="nome" rotulo="Nome" valor={dados.nome} aoAlterar={alterar} obrigatorio />
               <CampoFormulario id="telefone" rotulo="Telefone" tipo="tel" valor={dados.telefone} aoAlterar={alterar} desabilitado={editando} obrigatorio />
-              <CampoFormulario id="idade" rotulo="Idade" tipo="number" valor={dados.idade} aoAlterar={alterar} minimo={16} maximo={120} passo={1} obrigatorio />
+              <CampoFormulario id="idade" rotulo="Idade" tipo="number" valor={dados.idade} aoAlterar={alterar} minimo={0} passo={1} obrigatorio />
               <CampoSelecaoPesquisavel id="bairro" rotulo="Bairro" valor={dados.bairro} aoAlterar={alterarBairro} aoSelecionar={selecionarBairro} opcoes={bairros} obrigatorio />
               <CampoSelecao id="problema" rotulo="Categoria" valor={dados.problema} aoAlterar={alterar} opcoes={categoriasProblema} placeholder="Selecione" obrigatorio />
               <CampoSelecao id="origemId" rotulo="Origem" valor={dados.origemId} aoAlterar={alterar} opcoes={origens} placeholder="Selecione" desabilitado={editando} obrigatorio />

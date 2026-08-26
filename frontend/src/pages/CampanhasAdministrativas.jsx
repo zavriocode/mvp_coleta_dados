@@ -33,7 +33,7 @@ import {
   visualizarPublicoCampanha
 } from '../services/campanhaService';
 
-const CAMPANHA_INICIAL={nome:'',modeloId:'',bairro:'',problema:'',origem:'',idadeMinima:'',idadeMaxima:'',eventoId:'',autorizacaoMensagens:'',cadastroIncompleto:false};
+const CAMPANHA_INICIAL={nome:'',modeloId:'',bairro:'',problema:'',origem:'',eventoId:'',autorizacaoMensagens:'',cadastroIncompleto:false};
 const TEMPLATE_INICIAL={nome:'',categoria:'Geral',conteudo:'',ativo:true,metaNome:'',metaIdioma:'pt_BR',metaCategoria:'MARKETING',statusOficial:null,cabecalhoTipo:'nenhum',cabecalhoTexto:'',cabecalhoExemplo:'',cabecalhoOrigem:'nome_contato',cabecalhoValor:'',imagemHandle:'',imagemArquivo:null,imagemModo:'dispositivo',imagemEnvio:'',imagemEnvioArquivo:null,removerImagemEnvio:false,rodape:'',botoes:[],botoesOficiais:[],parametrosCorpo:[]};
 function novoBotao(){return {acao:'url',texto:'',url:'',exemplo:'',valorEnvio:'',telefone:''};}
 
@@ -221,8 +221,6 @@ function CampanhasAdministrativas(){
     if(formulario.bairro)filtros.bairro=formulario.bairro;
     if(formulario.problema)filtros.problema=formulario.problema;
     if(formulario.origem)filtros.origem=formulario.origem;
-    if(formulario.idadeMinima)filtros.idadeMinima=formulario.idadeMinima;
-    if(formulario.idadeMaxima)filtros.idadeMaxima=formulario.idadeMaxima;
     if(formulario.eventoId)filtros.eventoId=formulario.eventoId;
     if(formulario.autorizacaoMensagens)filtros.autorizacaoMensagens=formulario.autorizacaoMensagens;
     if(formulario.cadastroIncompleto)filtros.cadastroIncompleto='true';
@@ -234,7 +232,7 @@ function CampanhasAdministrativas(){
     setPreviaCriacao(null);
   }
   function limparFiltrosCriacao(){
-    setFormulario(Object.assign({},formulario,{bairro:'',problema:'',origem:'',idadeMinima:'',idadeMaxima:'',eventoId:'',autorizacaoMensagens:'',cadastroIncompleto:false}));
+    setFormulario(Object.assign({},formulario,{bairro:'',problema:'',origem:'',eventoId:'',autorizacaoMensagens:'',cadastroIncompleto:false}));
     setPreviaCriacao(null);
     setMensagem('Filtros removidos. A próxima prévia considerará todos os contatos aptos.');
   }
@@ -560,8 +558,6 @@ function CampanhasAdministrativas(){
           <label>Bairro<select className="campo-input" name="bairro" value={formulario.bairro} onChange={alterar}><option value="">Todos</option><option value="nao_informado">Não informado</option>{bairros.map(function(item){return <option key={item} value={item}>{item}</option>;})}</select></label>
           <label>Problema<select className="campo-input" name="problema" value={formulario.problema} onChange={alterar}><option value="">Todos</option><option value="nao_informado">Não informado</option>{problemas.map(function(item){return <option key={item} value={item}>{item}</option>;})}</select></label>
           <label>Origem<select className="campo-input" name="origem" value={formulario.origem} onChange={alterar}><option value="">Todas</option><option value="nao_informado">Não informado</option>{origens.map(function(item){return <option key={item.id} value={item.nome}>{item.nome}</option>;})}</select></label>
-          <label>Idade mínima<input className="campo-input" type="number" min="16" max="120" name="idadeMinima" value={formulario.idadeMinima} onChange={alterar}/></label>
-          <label>Idade máxima<input className="campo-input" type="number" min="16" max="120" name="idadeMaxima" value={formulario.idadeMaxima} onChange={alterar}/></label>
           <label>Evento<select className="campo-input" name="eventoId" value={formulario.eventoId} onChange={alterar}><option value="">Todos</option><option value="sem_evento">Sem evento</option>{eventos.map(function(item){return <option key={item.id} value={item.id}>{item.nome}</option>;})}</select></label>
           <label>Autorização para mensagens<select className="campo-input" name="autorizacaoMensagens" value={formulario.autorizacaoMensagens} onChange={alterar}><option value="">Todas as situações</option><option value="nao_informado">Não informado</option><option value="autorizado">Autorizado</option><option value="recusado">Recusado</option><option value="revogado">Revogado</option></select></label>
           <label className="opcao-cadastro-incompleto"><input type="checkbox" name="cadastroIncompleto" checked={formulario.cadastroIncompleto} onChange={alterar}/> Somente cadastros incompletos</label>

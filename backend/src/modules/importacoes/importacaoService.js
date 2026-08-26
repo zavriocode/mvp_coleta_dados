@@ -273,8 +273,8 @@ function validarLinha(linha, telefonesDoArquivo, bairrosAtivos) {
     erros.push('Bairro não pertence ao catálogo oficial do Rio de Janeiro.');
   }
 
-  if (idade !== null && (!Number.isInteger(idade) || idade < 16 || idade > 120)) {
-    erros.push('Idade deve ser inteira entre 16 e 120.');
+  if (idade !== null && (!Number.isInteger(idade) || idade < 0 || idade > 32767)) {
+    erros.push('Idade deve ser um número inteiro válido.');
   }
 
   if (problema && !categoriasProblema.includes(problema)) {

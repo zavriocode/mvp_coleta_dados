@@ -235,7 +235,8 @@ async function validarCatalogo(cliente) {
             '015_atualizar_templates_por_webhook_meta.sql',
             '016_alinhar_status_campanhas.sql',
             '017_arquivar_campanhas_com_historico.sql',
-            '018_garantir_telefone_canonico_unico.sql'
+            '018_garantir_telefone_canonico_unico.sql',
+            '019_remover_limite_etario_cadastros.sql'
           )
         ) AS migrations_atuais
     `
@@ -248,8 +249,8 @@ async function validarCatalogo(cliente) {
   );
   verificar(configuracoes.rows[0].textos === 3, 'Os três textos ativos não existem.');
   verificar(
-    configuracoes.rows[0].migrations_atuais === 18,
-    'O ledger deve registrar as dezoito migrations atuais.'
+    configuracoes.rows[0].migrations_atuais === 19,
+    'O ledger deve registrar as dezenove migrations atuais.'
   );
 
   const auditoriaCampanhas = await cliente.query(`
@@ -372,7 +373,7 @@ async function validarIntegridadeContato(cliente) {
   await esperarErro(
     cliente,
     consultaInsercao,
-    ['21900000002', 'Vila Kennedy', origemId, 15],
+    ['21900000002', 'Vila Kennedy', origemId, -1],
     '23514'
   );
 }

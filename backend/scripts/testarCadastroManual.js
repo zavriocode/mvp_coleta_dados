@@ -106,7 +106,7 @@ async function executar() {
       nome: 'Cadastro Manual Teste',
       telefone: TELEFONE,
       bairro: 'vila kennedy',
-      idade: 40,
+      idade: 13,
       problema: 'Educação',
       descricaoProblema: 'Registro manual temporário',
       origemId: origemManual.id,
@@ -130,10 +130,11 @@ async function executar() {
     assert.strictEqual(criacao.status, 201);
     assert.strictEqual(criacao.corpo.contatoCriado, true);
     const bairroArmazenado = await banco.query(
-      'SELECT bairro FROM contatos WHERE id = $1',
+      'SELECT bairro, idade FROM contatos WHERE id = $1',
       [criacao.corpo.contatoId]
     );
     assert.strictEqual(bairroArmazenado.rows[0].bairro, 'Vila Kennedy');
+    assert.strictEqual(bairroArmazenado.rows[0].idade, 13);
 
     const registros = await banco.query(
       `

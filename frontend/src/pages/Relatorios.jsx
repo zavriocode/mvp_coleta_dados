@@ -15,8 +15,6 @@ const FILTROS_INICIAIS = {
   bairro: '',
   problema: '',
   origem: '',
-  idadeMinima: '',
-  idadeMaxima: '',
   dataInicial: '',
   dataFinal: '',
   eventoId: ''
@@ -274,28 +272,6 @@ function Relatorios() {
     navegacao('/admin/contatos?' + parametros.toString());
   }
 
-  function abrirFaixaEtaria(item) {
-    const faixas = {
-      '16 a 24': [16, 24],
-      '25 a 34': [25, 34],
-      '35 a 44': [35, 44],
-      '45 a 59': [45, 59],
-      '60 ou mais': [60, 120]
-    };
-    const faixa = faixas[item.nome];
-
-    if (!faixa) {
-      if (formatarRotulo(item.nome) === 'Não informado') {
-        navegacao('/admin/contatos?idadeNaoInformada=true');
-      } else {
-        navegacao('/admin/contatos');
-      }
-      return;
-    }
-
-    navegacao('/admin/contatos?idadeMinima=' + faixa[0] + '&idadeMaxima=' + faixa[1]);
-  }
-
   function abrirProblemasBairro(bairro, problema) {
     const parametros = new URLSearchParams({ bairro: prepararValorFiltro(bairro) });
     if (problema) {
@@ -376,8 +352,6 @@ function Relatorios() {
                 }))}
                 placeholder="Todas"
               />
-              <CampoFormulario id="idadeMinima" rotulo="Idade mínima" tipo="number" valor={filtros.idadeMinima} aoAlterar={alterar} minimo={16} maximo={120} />
-              <CampoFormulario id="idadeMaxima" rotulo="Idade máxima" tipo="number" valor={filtros.idadeMaxima} aoAlterar={alterar} minimo={16} maximo={120} />
               <CampoFormulario id="dataInicial" rotulo="Data inicial" tipo="date" valor={filtros.dataInicial} aoAlterar={alterar} />
               <CampoFormulario id="dataFinal" rotulo="Data final" tipo="date" valor={filtros.dataFinal} aoAlterar={alterar} />
               <CampoSelecao id="eventoId" rotulo="Evento" valor={filtros.eventoId} aoAlterar={alterar} opcoes={[{ valor: 'sem_evento', rotulo: 'Cadastro geral (sem evento)' }].concat(eventos.map(function (item) { return { valor: String(item.id), rotulo: item.nome }; }))} placeholder="Todos" />
@@ -408,7 +382,7 @@ function Relatorios() {
             <div className="grade-graficos-relatorio">
               <GraficoResumo titulo="Contatos por bairro" subtitulo="Distribuição territorial" itens={resumo.porBairro} limite={10} destaque aoSelecionar={function (item) { abrirContatos('bairro', item.nome); }} />
               <GraficoResumo titulo="Principais necessidades" subtitulo="Categorias informadas" itens={resumo.porProblema} limite={10} destaque aoSelecionar={function (item) { abrirContatos('problema', item.nome); }} />
-              <GraficoResumo titulo="Faixa etária" subtitulo="Perfil dos contatos" itens={resumo.porFaixaEtaria} limite={8} aoSelecionar={abrirFaixaEtaria} />
+              <GraficoResumo titulo="Faixa etária" subtitulo="Perfil dos contatos" itens={resumo.porFaixaEtaria} limite={8} />
               <GraficoResumo titulo="Origem dos contatos" subtitulo="Canais de entrada" itens={resumo.porOrigem} limite={8} aoSelecionar={function (item) { abrirContatos('origem', item.nome); }} />
               <GraficoResumo titulo="Mensagens" subtitulo="Autorizações" itens={resumo.porAutorizacaoMensagens} limite={8} aoSelecionar={function (item) { abrirContatos('autorizacaoMensagens', item.nome); }} />
               <GraficoResumo titulo="Ligações" subtitulo="Autorizações" itens={resumo.porAutorizacaoLigacoes} limite={8} aoSelecionar={function (item) { abrirContatos('autorizacaoLigacoes', item.nome); }} />

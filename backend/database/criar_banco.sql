@@ -219,7 +219,7 @@ CREATE TABLE public.contatos (
     (consentimento_mensagens = FALSE AND consentimento_mensagens_em IS NULL)
   ),
   CONSTRAINT contatos_idade_valida CHECK (
-    idade IS NULL OR idade BETWEEN 16 AND 120
+    idade IS NULL OR idade >= 0
   ),
   CONSTRAINT contatos_nome_valido CHECK (
     nome IS NULL
@@ -1305,8 +1305,8 @@ INSERT INTO public.textos_formulario (tipo, versao, texto)
 VALUES
   (
     'aviso_privacidade',
-    'aviso_privacidade_v3',
-    'Tenho 16 anos ou mais, li o Aviso de Privacidade e consinto com o tratamento dos dados necessários para minha participação voluntária no projeto Acorda RJ.'
+    'aviso_privacidade_v4',
+    'Li o Aviso de Privacidade e consinto com o tratamento dos dados necessários para minha participação voluntária no projeto Acorda RJ.'
   ),
   (
     'mensagens',
@@ -1341,6 +1341,7 @@ INSERT INTO public.schema_migrations (
   ('015', '015_atualizar_templates_por_webhook_meta.sql', 'a7942ed6fbc44d230200ffca95baffa1626bbf089cca5081fff6f4a030596b9d'),
   ('016', '016_alinhar_status_campanhas.sql', '0a9ae25dce9417295dc249e284fbe7f9b2584488887c095d0405068ab6a85b3d'),
   ('017', '017_arquivar_campanhas_com_historico.sql', 'c0f9c7f3fd353b8277ba199cf113c6654ed741ae95421b44223205fed14af654'),
-  ('018', '018_garantir_telefone_canonico_unico.sql', '782bf9795daa02bbdd7e30a9efaabd7888977447efed1a4cc99327ba3af5cff2');
+  ('018', '018_garantir_telefone_canonico_unico.sql', '782bf9795daa02bbdd7e30a9efaabd7888977447efed1a4cc99327ba3af5cff2'),
+  ('019', '019_remover_limite_etario_cadastros.sql', 'fa99c9555c259385314b9d38fe35ac2426ae3782b593cf0228b27598b42348b9');
 
 COMMIT;

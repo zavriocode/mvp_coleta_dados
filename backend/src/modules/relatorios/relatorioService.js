@@ -68,11 +68,11 @@ function transformarProblemasPorBairro(mapa) {
 }
 
 function obterFaixaEtaria(idade) {
-  if (!idade) {
+  if (idade === null || idade === undefined) {
     return 'Não informado';
   }
   if (idade <= 24) {
-    return '16 a 24';
+    return 'Até 24';
   }
   if (idade <= 34) {
     return '25 a 34';

@@ -59,8 +59,8 @@ function validarFormulario(dadosFormulario, bairroConfirmado, bairros, categoria
 
   const idade = Number(dadosFormulario.idade);
 
-  if (!Number.isInteger(idade) || idade < 16 || idade > 120) {
-    return 'O cadastro é permitido somente para pessoas com 16 anos ou mais.';
+  if (!Number.isInteger(idade) || idade < 0 || idade > 32767) {
+    return 'Informe uma idade inteira válida.';
   }
 
   if (!bairroConfirmado || !bairros.includes(dadosFormulario.bairro)) {
@@ -550,11 +550,10 @@ function FormularioPublico() {
                 placeholder="Ex.: 35"
                 obrigatorio
                 desabilitado={enviando}
-                minimo={16}
-                maximo={120}
+                minimo={0}
                 passo={1}
                 inputMode="numeric"
-                ajuda="Cadastro permitido somente para pessoas com 16 anos ou mais."
+                ajuda="Informe a idade atual em anos completos."
               />
 
               <CampoSelecaoPesquisavel

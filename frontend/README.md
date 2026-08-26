@@ -51,7 +51,7 @@ Campos atuais:
 - nome;
 - telefone;
 - bairro selecionado no catálogo carregado do backend;
-- idade inteira entre 16 e 120; pessoas com menos de 16 anos são bloqueadas
+- idade atual informada como número inteiro, sem restrição etária para cadastro
   no navegador, na API e pelo banco;
 - categoria do problema;
 - autorização opcional para mensagens;
@@ -69,7 +69,7 @@ autorização de ligação possui texto e caixa separados. O formulário contém
 links para Privacidade, Termos e Exclusão de dados.
 
 A Política de Privacidade identifica o controlador, dados, finalidades, bases
-legais, idade mínima, comunicações políticas, fornecedores, transferências
+legais, proteção de crianças e adolescentes, comunicações políticas, fornecedores, transferências
 internacionais, retenção, segurança e direitos. O canal oficial precisa ser
 configurado em `VITE_PRIVACIDADE_EMAIL` antes do início da coleta oficial.
 

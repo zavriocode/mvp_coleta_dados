@@ -9,7 +9,11 @@ const pg = require('pg');
 const NOME_BANCO = 'acorda_rj_correcoes_finais_qa_' + process.pid;
 const SCRIPTS = [
   'testarTelefoneCanonicoMigration.js',
+  'testarCadastroPublico.js',
+  'testarAdministracao.js',
   'testarCadastroManual.js',
+  'testarImportacoes.js',
+  'testarRelatorios.js',
   'testarEventosExclusoes.js',
   'testarCampanhas.js',
   'testarSegurancaUsuarios.js',
@@ -104,7 +108,7 @@ async function executar() {
       resultados.push(await executarScript(SCRIPTS[indice], ambiente));
     }
     console.log(resultados.join('\n'));
-    console.log('Correções finais: 7 grupos locais isolados aprovados.');
+    console.log('Correções finais: 11 grupos locais isolados aprovados.');
   } finally {
     if (bancoTeste) await bancoTeste.end().catch(function () {});
     if (administracaoConectada) {

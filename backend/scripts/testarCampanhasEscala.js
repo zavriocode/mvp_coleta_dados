@@ -11,15 +11,6 @@ function confirmar(condicao, mensagem) {
   verificacoes += 1;
 }
 
-function contarFaixa(inicio, fim, predicado) {
-  let total = 0;
-  let indice;
-  for (indice = inicio; indice < fim; indice += 1) {
-    if (predicado(indice)) total += 1;
-  }
-  return total;
-}
-
 async function criarCampanha(nome, templateId, filtros, usuario) {
   const campanha = await campanhaService.criar({
     nome,
@@ -163,25 +154,11 @@ async function executar() {
   await validarPrevia({ nome: marca, bairro: bairros[0].nome }, 5000, 5000, 'bairro');
   await validarPrevia({ nome: marca, problema: 'Iluminacao publica' }, 5000, 5000, 'problema');
   await validarPrevia({ nome: marca, origem: origens[0].nome }, 7000, 7000, 'origem');
-  const esperadosFaixa = contarFaixa(0, 10000, function (item) {
-    const idade = 16 + (item % 65);
-    return idade >= 30 && idade <= 39;
-  });
-  await validarPrevia({ nome: marca, idadeMinima: 30, idadeMaxima: 39 }, esperadosFaixa, esperadosFaixa, 'faixa etaria');
   await validarPrevia({ nome: marca, autorizacaoMensagens: 'autorizado' }, 1000, 1000, 'consentimento autorizado');
   await validarPrevia({ nome: marca, autorizacaoMensagens: 'recusado' }, 1, 0, 'consentimento recusado');
   await validarPrevia({ nome: marca, eventoId: eventos[0].id }, 3000, 3000, 'evento A');
   await validarPrevia({ nome: marca, eventoId: eventos[1].id }, 3000, 3000, 'evento B');
   await validarPrevia({ nome: marca, eventoId: 'sem_evento' }, 5005, 5000, 'sem evento');
-  const combinado = contarFaixa(0, 3000, function (item) {
-    const idade = 16 + (item % 65);
-    return item < 5000 && item % 2 === 0 && idade >= 25 && idade <= 45;
-  });
-  await validarPrevia({
-    nome: marca, eventoId: eventos[0].id, bairro: bairros[0].nome,
-    problema: 'Saude', idadeMinima: 25, idadeMaxima: 45
-  }, combinado, combinado, 'evento + bairro + problema + idade');
-
   const principal = await criarCampanha(marca + ' PRINCIPAL', template.id, { nome: marca }, usuario);
   const previaLote = await campanhaService.visualizarPublico(principal.id, 5000);
   confirmar(previaLote.publicoEncontrado === 10005 && previaLote.publicoApto === 10000,

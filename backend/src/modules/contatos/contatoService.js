@@ -61,11 +61,8 @@ function validarBooleano(valor, nomeCampo, obrigatorio) {
 }
 
 function validarIdade(valor) {
-  if (!Number.isInteger(valor) || valor < 16 || valor > 120) {
-    throw criarAppError(
-      'O cadastro é permitido somente para pessoas com idade inteira entre 16 e 120 anos.',
-      400
-    );
+  if (!Number.isInteger(valor) || valor < 0 || valor > 32767) {
+    throw criarAppError('Informe uma idade inteira válida.', 400);
   }
 
   return valor;
@@ -526,20 +523,6 @@ function tratarNumeroPaginacao(valor, valorPadrao, nomeCampo) {
   return numero;
 }
 
-function tratarIdadeFiltro(valor, nomeCampo) {
-  if (valor === undefined || valor === null || valor === '') {
-    return null;
-  }
-
-  const idade = Number(valor);
-
-  if (!Number.isInteger(idade) || idade < 16 || idade > 120) {
-    throw criarAppError('O filtro ' + nomeCampo + ' é inválido.', 400);
-  }
-
-  return idade;
-}
-
 function tratarOpcaoFiltro(valor, nomeCampo, opcoes) {
   if (valor === undefined || valor === null || valor === '') {
     return '';
@@ -628,8 +611,6 @@ function prepararFiltros(parametrosRecebidos) {
     parametrosRecebidos.consentimentoLigacoes,
     'consentimentoLigacoes'
   );
-  const idadeMinima = tratarIdadeFiltro(parametrosRecebidos.idadeMinima, 'idadeMinima');
-  const idadeMaxima = tratarIdadeFiltro(parametrosRecebidos.idadeMaxima, 'idadeMaxima');
   const idadeNaoInformada = tratarOpcaoFiltro(
     parametrosRecebidos.idadeNaoInformada,
     'idadeNaoInformada',
@@ -676,14 +657,6 @@ function prepararFiltros(parametrosRecebidos) {
     eventoId = eventoRecebido;
   }
 
-  if (idadeMinima !== null && idadeMaxima !== null && idadeMinima > idadeMaxima) {
-    throw criarAppError('A idade mínima não pode ser maior que a idade máxima.', 400);
-  }
-
-  if (idadeNaoInformada && (idadeMinima !== null || idadeMaxima !== null)) {
-    throw criarAppError('O filtro de idade não informada não pode ser combinado com faixa etária.', 400);
-  }
-
   if (dataInicial && dataFinal && dataInicial > dataFinal) {
     throw criarAppError('A data inicial não pode ser posterior à data final.', 400);
   }
@@ -706,8 +679,6 @@ function prepararFiltros(parametrosRecebidos) {
     origem,
     status,
     statusAtendimento,
-    idadeMinima,
-    idadeMaxima,
     idadeNaoInformada,
     cadastroIncompleto,
     autorizacaoMensagens,

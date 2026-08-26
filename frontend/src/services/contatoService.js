@@ -79,14 +79,6 @@ async function listarContatos(filtros, pagina, limite, sinal) {
     parametros.set('statusAtendimento', filtros.statusAtendimento);
   }
 
-  if (filtros.idadeMinima) {
-    parametros.set('idadeMinima', filtros.idadeMinima);
-  }
-
-  if (filtros.idadeMaxima) {
-    parametros.set('idadeMaxima', filtros.idadeMaxima);
-  }
-
   if (filtros.autorizacaoMensagens) {
     parametros.set('autorizacaoMensagens', filtros.autorizacaoMensagens);
   }

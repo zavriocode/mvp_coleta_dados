@@ -325,7 +325,7 @@ das implementações de campanhas e Meta ficam nos relatórios `RELATORIO_*.md`.
 Execute novamente os comandos acima antes de cada publicação relevante; não
 trate uma contagem histórica como validação do código atual.
 
-O teste de schema cria um banco temporário vazio, aplica `database/criar_banco.sql`, valida 31 tabelas, 18 migrations registradas e 166 bairros e remove o banco temporário ao final.
+O teste de schema cria um banco temporário vazio, aplica `database/criar_banco.sql`, valida 31 tabelas, 19 migrations registradas e 166 bairros e remove o banco temporário ao final.
 
 O teste de carga de importação gera 15.000 contatos temporários, percorre pré-visualização, confirmação e persistência, valida a rejeição de 20.001 linhas, remove todos os dados de teste e ressincroniza as sequências utilizadas. Ele recusa execução quando `NODE_ENV=production`.
 

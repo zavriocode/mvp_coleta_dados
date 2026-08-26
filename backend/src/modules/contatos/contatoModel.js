@@ -1125,9 +1125,6 @@ function construirFiltros(filtros) {
 
   if (filtros.idadeNaoInformada) {
     condicoes.push('contato.idade IS NULL');
-  } else if (filtros.idadeMinima !== null) {
-    valores.push(filtros.idadeMinima);
-    condicoes.push('contato.idade >= $' + valores.length);
   }
 
   if (filtros.cadastroIncompleto) {
@@ -1137,11 +1134,6 @@ function construirFiltros(filtros) {
       OR NULLIF(BTRIM(contato.problema), '') IS NULL
       OR contato.idade IS NULL
     )`);
-  }
-
-  if (!filtros.idadeNaoInformada && filtros.idadeMaxima !== null) {
-    valores.push(filtros.idadeMaxima);
-    condicoes.push('contato.idade <= $' + valores.length);
   }
 
   if (filtros.autorizacaoMensagens) {

@@ -23,8 +23,6 @@ const FILTROS_INICIAIS = {
   origem: '',
   status: '',
   statusAtendimento: '',
-  idadeMinima: '',
-  idadeMaxima: '',
   idadeNaoInformada: '',
   autorizacaoMensagens: '',
   autorizacaoLigacoes: '',
@@ -90,8 +88,6 @@ function prepararFiltros(filtros) {
     origem: prepararTexto(filtros.origem),
     status: filtros.status.trim(),
     statusAtendimento: filtros.statusAtendimento,
-    idadeMinima: filtros.idadeMinima,
-    idadeMaxima: filtros.idadeMaxima,
     idadeNaoInformada: filtros.idadeNaoInformada,
     autorizacaoMensagens: filtros.autorizacaoMensagens,
     autorizacaoLigacoes: filtros.autorizacaoLigacoes,
@@ -272,9 +268,6 @@ function ContatosAdministrativos() {
               <div className="titulo-grupo-filtros">Identificação</div>
               <CampoFormulario id="filtro-nome" nome="nome" rotulo="Nome" valor={filtrosFormulario.nome} aoAlterar={alterarFiltro} placeholder="Nome ou parte dele" desabilitado={carregando} />
               <CampoFormulario id="filtro-telefone" nome="telefone" rotulo="Telefone" tipo="tel" valor={filtrosFormulario.telefone} aoAlterar={alterarFiltro} placeholder="(21) 99999-9999" desabilitado={carregando} inputMode="tel" />
-              <CampoFormulario id="filtro-idade-minima" nome="idadeMinima" rotulo="Idade mínima" tipo="number" valor={filtrosFormulario.idadeMinima} aoAlterar={alterarFiltro} minimo={16} maximo={120} desabilitado={carregando} />
-              <CampoFormulario id="filtro-idade-maxima" nome="idadeMaxima" rotulo="Idade máxima" tipo="number" valor={filtrosFormulario.idadeMaxima} aoAlterar={alterarFiltro} minimo={16} maximo={120} desabilitado={carregando} />
-
               <div className="titulo-grupo-filtros">Perfil do cadastro</div>
               <CampoSelecao id="filtro-bairro" nome="bairro" rotulo="Bairro" valor={filtrosFormulario.bairro} aoAlterar={alterarFiltro} opcoes={[{ valor: 'nao_informado', rotulo: 'Não informado' }].concat(bairros)} placeholder="Todos" desabilitado={carregando} />
               <CampoSelecao id="filtro-problema" nome="problema" rotulo="Problema" valor={filtrosFormulario.problema} aoAlterar={alterarFiltro} opcoes={[{ valor: 'nao_informado', rotulo: 'Não informado' }].concat(categoriasProblema)} placeholder="Todos" desabilitado={carregando} />

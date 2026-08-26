@@ -10,13 +10,12 @@ function Termos() {
       <section>
         <h2>Participação voluntária</h2>
         <p>
-          O formulário é destinado à participação voluntária de pessoas com 16 anos ou mais.
-          O envio das informações não cria relação comercial, trabalhista ou garantia de que
-          a demanda apresentada será executada.
+          O formulário é destinado à participação voluntária. O envio das informações não cria
+          relação comercial, trabalhista ou garantia de que a demanda apresentada será executada.
         </p>
         <p>
-          Pessoas com menos de 16 anos não podem realizar o cadastro. Ao prosseguir, a pessoa
-          declara que informou sua idade verdadeira.
+          Ao prosseguir, a pessoa declara que informou sua idade verdadeira. O tratamento de
+          dados de crianças e adolescentes deve observar seu melhor interesse e a legislação aplicável.
         </p>
       </section>
 

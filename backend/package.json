@@ -23,6 +23,7 @@
     "testar:exclusao-campanhas": "node scripts/testarExclusaoArquivamentoCampanhas.js",
     "testar:correcoes-finais": "node scripts/testarCorrecoesFinaisIsolado.js",
     "testar:status-campanha": "node scripts/testarStatusCampanhaMigration.js",
+    "testar:idade-sem-limite": "node scripts/testarRemocaoLimiteEtario.js",
     "testar:webhook": "node scripts/testarWebhookMensageria.js",
     "testar:meta": "node scripts/testarIntegracaoMeta.js",
     "testar:log-meta": "node scripts/testarLogErroMeta.js",

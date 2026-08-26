@@ -119,8 +119,6 @@ async function executar() {
       telefone: '(21) 99998-7001',
       bairro: 'Vila',
       problema: 'Saú',
-      idadeMinima: '40',
-      idadeMaxima: '45',
       origem: 'Formulário',
       autorizacaoMensagens: 'autorizado',
       autorizacaoLigacoes: 'nao_informado',
@@ -192,13 +190,15 @@ async function executar() {
       );
     }
 
-    assert.strictEqual((await requisitar(
+    const filtrosEtariosLegados = await requisitar(
       baseUrl,
-      '/api/admin/contatos?idadeNaoInformada=true&idadeMinima=18',
+      '/api/admin/contatos?telefone=' + TELEFONE_TESTE + '&idadeMinima=1000&idadeMaxima=1001',
       { headers: cabecalhos }
-    )).status, 400);
+    );
+    assert.strictEqual(filtrosEtariosLegados.status, 200);
+    assert.strictEqual(filtrosEtariosLegados.corpo.contatos.length, 1);
 
-    console.log('Administração: 43 verificações aprovadas.');
+    console.log('Administração: 44 verificações aprovadas.');
     console.log('Login, JWT, filtros combinados, paginação e detalhes aprovados.');
   } finally {
     if (servidor) {

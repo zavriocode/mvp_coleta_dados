@@ -162,7 +162,7 @@ async function executar() {
     assert.ok(opcoes.corpo.bairros.includes('São Cristóvão'));
     assert.strictEqual(
       opcoes.corpo.textosConsentimento.avisoPrivacidade.versao,
-      'aviso_privacidade_v3'
+      'aviso_privacidade_v4'
     );
     assert.strictEqual(
       opcoes.corpo.textosConsentimento.mensagens.versao,
@@ -184,9 +184,11 @@ async function executar() {
     assert.strictEqual((await requisitar(baseUrl, '/api/publico/contatos', {
       method: 'POST', body: JSON.stringify(semIdade)
     })).status, 400);
-    assert.strictEqual((await requisitar(baseUrl, '/api/publico/contatos', {
-      method: 'POST', body: JSON.stringify(criarDados('002', { idade: 15 }))
-    })).status, 400);
+    const cadastroAdolescente = await requisitar(baseUrl, '/api/publico/contatos', {
+      method: 'POST', body: JSON.stringify(criarDados('002', { idade: 13 }))
+    });
+    assert.strictEqual(cadastroAdolescente.status, 201);
+    assert.strictEqual((await buscarResumoContato(PREFIXO_TELEFONE + '002')).idade, 13);
     assert.strictEqual((await requisitar(baseUrl, '/api/publico/contatos', {
       method: 'POST', body: JSON.stringify(criarDados('003', { telefone: '123' }))
     })).status, 400);
@@ -314,7 +316,7 @@ async function executar() {
         nome: 'Teste de rollback',
         telefone: PREFIXO_TELEFONE + '030',
         telefoneNormalizado: PREFIXO_TELEFONE + '030',
-        idade: 121,
+        idade: -1,
         bairro: 'Vila Kennedy',
         problema: 'Saúde',
         aceitePrivacidade: true,
@@ -338,7 +340,7 @@ async function executar() {
     );
     assert.deepStrictEqual(legadosDepois.rows, legadosAntes.rows);
 
-    console.log('Cadastro público: 42 verificações aprovadas.');
+    console.log('Cadastro público: 43 verificações aprovadas.');
     console.log('Consentimentos anteriores preservados: ' + legadosDepois.rowCount + ' registros.');
     console.log('Rollback: contato inválido não persistido.');
   } finally {

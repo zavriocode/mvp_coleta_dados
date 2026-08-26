@@ -60,12 +60,12 @@ function Privacidade() {
       </section>
 
       <section>
-        <h2>Idade mínima</h2>
+        <h2>Participação de crianças e adolescentes</h2>
         <p>
-          O cadastro é permitido somente para pessoas com 16 anos ou mais. Pessoas com menos
-          de 16 anos não devem enviar o formulário. Para participantes de 16 e 17 anos, o
-          tratamento deve respeitar seu melhor interesse, usar somente os dados necessários e
-          não ser utilizado para inferir opinião política ou criar perfil político.
+          O formulário não estabelece idade mínima para o cadastro. Quando houver dados de
+          crianças ou adolescentes, o tratamento deverá respeitar seu melhor interesse, usar
+          somente os dados necessários e observar a legislação aplicável. A idade deve ser
+          informada corretamente.
         </p>
       </section>
 

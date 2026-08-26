@@ -91,7 +91,7 @@ async function executar() {
   `, [contatos.map(function (item) { return item.id; }), evento.id]);
 
   const campanha = await criarCampanha(marca + ' CAMPANHA', template.id, {
-    eventoId: evento.id, bairro, problema: 'Saude', idadeMinima: 30, idadeMaxima: 31
+    eventoId: evento.id, bairro, problema: 'Saude'
   }, usuario);
   const previa = await campanhaService.visualizarPublico(campanha.id, 2);
   confirmar(previa.publicoEncontrado === 2 && previa.publicoApto === 2 && previa.publicoNaoApto === 0,

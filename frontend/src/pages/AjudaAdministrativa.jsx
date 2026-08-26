@@ -26,7 +26,7 @@ const MODULOS = [
     acao: 'Ir para Contatos',
     marcadores: [
       { numero: 1, x: 29, y: 23, titulo: 'Busca', texto: 'Digite nome ou telefone para localizar uma pessoa.' },
-      { numero: 2, x: 56, y: 42, titulo: 'Filtros', texto: 'Combine bairro, idade, evento, origem e autorizações.' },
+      { numero: 2, x: 56, y: 42, titulo: 'Filtros', texto: 'Combine bairro, evento, origem e autorizações.' },
       { numero: 3, x: 8, y: 29, titulo: 'Novo cadastro', texto: 'Abre o formulário de cadastro manual.' },
       { numero: 4, x: 49, y: 72, titulo: 'Lista', texto: 'Mostra os resultados; dados pessoais foram ocultados nesta imagem.' },
       { numero: 5, x: 88, y: 78, titulo: 'Detalhes e páginas', texto: 'Abra o contato para ver consentimentos, bloqueios e histórico; use a paginação para continuar.' }

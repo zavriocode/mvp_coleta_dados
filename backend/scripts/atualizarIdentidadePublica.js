@@ -3,12 +3,12 @@ require('dotenv').config({ quiet: true });
 const banco = require('../src/config/banco');
 
 const TEXTO_AVISO_PRIVACIDADE =
-  'Tenho 16 anos ou mais, li o Aviso de Privacidade e consinto com o tratamento dos dados necessários para minha participação voluntária no projeto Acorda RJ.';
+  'Li o Aviso de Privacidade e consinto com o tratamento dos dados necessários para minha participação voluntária no projeto Acorda RJ.';
 
 const TEXTOS_ATIVOS = [
   {
     tipo: 'aviso_privacidade',
-    versao: 'aviso_privacidade_v3',
+    versao: 'aviso_privacidade_v4',
     texto: TEXTO_AVISO_PRIVACIDADE
   },
   {
