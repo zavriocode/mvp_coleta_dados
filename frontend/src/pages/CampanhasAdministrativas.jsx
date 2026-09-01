@@ -16,6 +16,7 @@ import {
   criarTemplate,
   enviarTentativa,
   excluirCampanha,
+  excluirTemplate,
   listarCampanhas,
   listarContatosLote,
   listarFalhasCampanha,
@@ -375,6 +376,15 @@ function CampanhasAdministrativas(){
   function moverBotao(indice,direcao){const destino=indice+direcao;if(destino<0||destino>=template.botoes.length)return;const botoes=template.botoes.slice();const atual=botoes[indice];botoes[indice]=botoes[destino];botoes[destino]=atual;setTemplate(Object.assign({},template,{botoes}));}
   async function sincronizarTemplates(){try{const resposta=await sincronizarTemplatesMeta();setMensagem(resposta.mensagem+' '+resposta.resumo.total+' template(s) recebido(s).');await carregar();}catch(erro){setMensagem(erro.message);}}
   async function submeterTemplate(item){if(!window.confirm('Enviar este template para análise da Meta? Isso não envia mensagens aos contatos.'))return;try{const resposta=await submeterTemplateMeta(item.id);setMensagem(resposta.mensagem);await carregar();}catch(erro){setMensagem(erro.message);}}
+  async function removerTemplate(item){
+    if(!window.confirm('Tem certeza que deseja excluir este modelo?\nEssa ação não poderá ser desfeita.'))return;
+    try{
+      const resposta=await excluirTemplate(item.id);
+      if(templateEdicao===item.id){setTemplateEdicao(null);setTemplateOficialEdicao(false);setTemplate(TEMPLATE_INICIAL);}
+      setMensagem(resposta.mensagem);
+      await carregar();
+    }catch(erro){setMensagem(erro.message);}
+  }
 
   async function abrirCampanha(item){
     try{
@@ -633,7 +643,7 @@ function CampanhasAdministrativas(){
         const emAnalise=['PENDING','IN_APPEAL'].includes(item.meta_status_oficial);
         const imagemPendente=aprovado&&possuiCabecalhoImagem(item)&&!possuiImagemConfigurada(item);
         const textoAcao=!item.meta_template_id?'Editar rascunho':aprovado?(imagemPendente?'Configurar imagem':'Definir informações de envio'):emAnalise?'Acompanhar análise':'Ver modelo';
-        return <article key={item.id}><div><strong>{item.nome}</strong><span>{item.meta_nome||'Ainda sem nome na Meta'} · {item.meta_idioma||'Idioma não informado'} · {textoCategoriaMeta(item.meta_categoria)}</span><span className={'status-campanha status-'+item.meta_status}>{textoStatus(item.meta_status||'rascunho')}</span><small>{explicacaoStatusTemplate(item.meta_status||'rascunho')}</small>{item.meta_origem==='meta'&&<small>Sincronizado diretamente da conta oficial da Meta.</small>}{imagemPendente&&<span className="configuracao-pendente-template"><strong>Imagem para envio</strong> Não configurada</span>}{item.meta_sincronizado_em&&<small>Última atualização: {new Date(item.meta_sincronizado_em).toLocaleString('pt-BR')}</small>}</div><div className="acoes-template-meta"><button className="botao botao-secundario" type="button" onClick={function(){editarTemplate(item);}}>{textoAcao}</button>{!item.meta_template_id&&<button className="botao botao-primario" type="button" title="Envia o modelo para avaliação. Não envia mensagens para contatos." onClick={function(){submeterTemplate(item);}}>Enviar para análise da Meta</button>}</div></article>;
+        return <article key={item.id}><div><strong>{item.nome}</strong><span>{item.meta_nome||'Ainda sem nome na Meta'} · {item.meta_idioma||'Idioma não informado'} · {textoCategoriaMeta(item.meta_categoria)}</span><span className={'status-campanha status-'+item.meta_status}>{textoStatus(item.meta_status||'rascunho')}</span><small>{explicacaoStatusTemplate(item.meta_status||'rascunho')}</small>{item.meta_origem==='meta'&&<small>Sincronizado diretamente da conta oficial da Meta.</small>}{imagemPendente&&<span className="configuracao-pendente-template"><strong>Imagem para envio</strong> Não configurada</span>}{item.meta_sincronizado_em&&<small>Última atualização: {new Date(item.meta_sincronizado_em).toLocaleString('pt-BR')}</small>}</div><div className="acoes-template-meta"><button className="botao botao-secundario" type="button" onClick={function(){editarTemplate(item);}}>{textoAcao}</button>{!item.meta_template_id&&<button className="botao botao-primario" type="button" title="Envia o modelo para avaliação. Não envia mensagens para contatos." onClick={function(){submeterTemplate(item);}}>Enviar para análise da Meta</button>}{item.pode_excluir&&<button className="botao botao-perigo" type="button" onClick={function(){removerTemplate(item);}}>Excluir rascunho</button>}</div></article>;
       })}</div>
     </div></details>}
 

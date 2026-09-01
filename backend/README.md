@@ -111,7 +111,9 @@ As migrations de campanhas/mensageria são `006_criar_campanhas_lotes_mensageria
 `014_garantir_auditoria_campanhas.sql` e
 `015_atualizar_templates_por_webhook_meta.sql`. O suporte
 ao arquivo de contatos do iPhone foi incorporado por
-`010_permitir_importacao_vcf.sql`.
+`010_permitir_importacao_vcf.sql`. A exclusão manual e não destrutiva de
+rascunhos de modelos foi incorporada por
+`020_excluir_modelos_sem_apagar_historico.sql`.
 
 O `database/criar_banco.sql` continua exclusivo para banco vazio e já registra as migrations incorporadas. Nunca execute o schema completo em banco com estrutura ou dados.
 
@@ -325,7 +327,7 @@ das implementações de campanhas e Meta ficam nos relatórios `RELATORIO_*.md`.
 Execute novamente os comandos acima antes de cada publicação relevante; não
 trate uma contagem histórica como validação do código atual.
 
-O teste de schema cria um banco temporário vazio, aplica `database/criar_banco.sql`, valida 31 tabelas, 19 migrations registradas e 166 bairros e remove o banco temporário ao final.
+O teste de schema cria um banco temporário vazio, aplica `database/criar_banco.sql`, valida 31 tabelas, 20 migrations registradas e 166 bairros e remove o banco temporário ao final.
 
 O teste de carga de importação gera 15.000 contatos temporários, percorre pré-visualização, confirmação e persistência, valida a rejeição de 20.001 linhas, remove todos os dados de teste e ressincroniza as sequências utilizadas. Ele recusa execução quando `NODE_ENV=production`.
 

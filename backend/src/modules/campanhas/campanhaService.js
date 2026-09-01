@@ -317,6 +317,19 @@ async function sincronizarLimiteMeta(usuario) {
 
 async function listarTemplates() { return campanhaModel.listarTemplates(); }
 
+async function excluirTemplate(idRecebido, usuario) {
+  const id = validarId(idRecebido, 'Modelo');
+  let template;
+  try {
+    template = await campanhaModel.excluirTemplate(id, usuario.id);
+  } catch (erro) {
+    if (erro.codigo === 'TEMPLATE_EXCLUSAO_PROTEGIDA') throw criarAppError(erro.message, 409);
+    throw erro;
+  }
+  if (!template) throw criarAppError('Modelo não encontrado.', 404);
+  return template;
+}
+
 async function salvarTemplate(idRecebido, dados, usuario) {
   const id = idRecebido ? validarId(idRecebido, 'Template') : null;
   let template;
@@ -338,7 +351,7 @@ function definirRelogioParaTeste(funcao) {
 
 module.exports = {
   alterarStatus, atualizar, atualizarLimite, configurarEnvioTemplate, criar, criarLote,
-  excluirOuArquivar,
+  excluirOuArquivar, excluirTemplate,
   definirRelogioParaTeste, listar, listarContatosLote, listarFalhas, listarLotes,
   listarTemplates, obterLimite, prepararImagemEnvioTemplate, prepararImagemTemplate, salvarTemplate, sincronizarLimiteMeta, visualizarPreviaFiltros,
   prepararEnvio, visualizarPublico, submeterTemplate, sincronizarTemplatesMeta

@@ -67,7 +67,7 @@ async function executar() {
       textos: 3,
       usuarios: 0,
       contatos: 0,
-      migrations: 19
+      migrations: 20
     });
     const diretorioMigrations = path.join(__dirname, '..', 'database', 'migrations');
     const migrationsArquivos = fs.readdirSync(diretorioMigrations)

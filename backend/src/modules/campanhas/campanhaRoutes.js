@@ -26,6 +26,7 @@ roteador.post('/templates', autorizarAdministrador, controller.criarTemplate);
 roteador.post('/templates/:id/submeter-meta', autorizarAdministrador, controller.submeterTemplate);
 roteador.put('/templates/:id/configuracao-envio', autorizarAdministrador, controller.configurarEnvioTemplate);
 roteador.put('/templates/:id', autorizarAdministrador, controller.atualizarTemplate);
+roteador.delete('/templates/:id', autorizarAdministrador, controller.excluirTemplate);
 roteador.get('/configuracao/limite', controller.obterLimite);
 roteador.put('/configuracao/limite', autorizarAdministrador, controller.atualizarLimite);
 roteador.post('/configuracao/limite/sincronizar-meta', autorizarAdministrador, controller.sincronizarLimiteMeta);

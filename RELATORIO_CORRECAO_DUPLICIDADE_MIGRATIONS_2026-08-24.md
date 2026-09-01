@@ -2,8 +2,10 @@
 
 **Projeto:** ACORDA RJ  
 **Data:** 24 de agosto de 2026  
+**Validação em produção:** 26 de agosto de 2026
 **Banco corrigido:** PostgreSQL local  
-**Produção, Meta real, deploy, commit e push:** não realizados
+**Produção:** diagnosticada e validada pelo Console da DigitalOcean após deploy realizado pelo usuário
+**Meta real e mensagens:** não acessadas ou enviadas
 
 ## 1. Causa da duplicidade
 
@@ -51,6 +53,16 @@ Foi confirmado que:
 - idade negativa é rejeitada com PostgreSQL `23514`;
 - o teste de idade foi executado em transação e desfeito com `ROLLBACK`.
 
+No PostgreSQL de produção, a consulta inicial confirmou que a migration 018 já
+estava aplicada, o índice de telefone estava único e válido e não existia grupo
+de telefone canônico duplicado. Portanto, nenhuma exclusão ou consolidação foi
+necessária em produção.
+
+Depois do deploy realizado pelo usuário, uma nova consulta pelo Console da
+DigitalOcean confirmou que as migrations 018 e 019 constam no ledger, a
+constraint final aceita `idade IS NULL OR idade >= 0` e o aviso ativo é
+`aviso_privacidade_v4`.
+
 ## 4. Testes
 
 ```text
@@ -78,6 +90,9 @@ Estrutura do banco local
 Migration de idade em banco temporário
 Idade 13 aceita, idade negativa rejeitada e histórico de avisos preservado.
 
+Validação controlada em produção
+Idade 13 aceita, idade negativa rejeitada e zero registros de teste persistidos.
+
 Build frontend
 72 módulos transformados; aprovado.
 
@@ -100,12 +115,23 @@ contrato processado pelo backend.
 Os utilitários pontuais usados no diagnóstico e na transação foram removidos
 depois da execução; nenhum script destrutivo ficou disponível no projeto.
 
-## 6. Limitação da conexão externa
+## 6. Validação de produção
 
-A `DATABASE_URL` externa foi tentada duas vezes somente para leitura, mas a
-conexão expirou antes de alcançar o PostgreSQL. Nenhuma consulta ou alteração
-foi executada nesse banco. Por isso, os resultados acima se referem
-exclusivamente ao PostgreSQL local que havia bloqueado o migrador.
+Como o acesso externo direto continuou bloqueado por timeout, as consultas foram
+executadas pelo usuário no Console do backend, que já é uma fonte confiável da
+DigitalOcean. Os resultados apresentados pelo PostgreSQL de produção foram:
 
+```text
+migrations: 018 e 019
+índice de telefone: único e válido
+grupos canônicos duplicados: 0
+constraint de idade: idade nula ou maior/igual a zero
+aviso ativo: aviso_privacidade_v4
+idade 13: aceita
+idade negativa: rejeitada
+registros de teste persistidos: 0
+```
+
+O teste de idade foi executado dentro de transação e finalizado com `ROLLBACK`.
 Nenhuma credencial, URL de conexão ou telefone completo foi registrada neste
 relatório.

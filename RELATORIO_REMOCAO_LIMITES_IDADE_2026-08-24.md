@@ -2,8 +2,10 @@
 
 **Projeto:** ACORDA RJ  
 **Data:** 24 de agosto de 2026  
-**Validação:** PostgreSQL temporário isolado, backend local e frontend compilado  
-**Produção, Meta real, deploy, commit e push:** não realizados
+**Validação em produção:** 26 de agosto de 2026
+**Validação:** PostgreSQL temporário isolado, backend local, frontend compilado e Console da DigitalOcean
+**Produção:** migration 019 aplicada após deploy realizado pelo usuário
+**Meta real e mensagens:** não acessadas ou enviadas
 
 ## 1. Regra final
 
@@ -38,11 +40,18 @@ históricos. As páginas de privacidade e termos passaram a informar que dados d
 crianças e adolescentes devem observar o melhor interesse e a legislação
 aplicável.
 
-A migration 019 foi validada em PostgreSQL temporário. Ela não foi aplicada ao
-banco local principal porque a migration anterior 018 encontrou um grupo de
-telefones canônicos duplicados e bloqueou corretamente a sequência. Nenhum
-contato foi apagado ou mesclado automaticamente. Depois da revisão individual
-dessa duplicidade, as migrations 018 e 019 poderão seguir pelo migrador normal.
+A migration 019 foi validada em PostgreSQL temporário. No banco local, a
+migration anterior 018 encontrou um grupo de telefones canônicos duplicados e
+bloqueou corretamente a sequência. Após a revisão individual, somente a
+duplicata importada incompleta e sem vínculos foi removida em transação; o
+cadastro completo e seus relacionamentos foram preservados. O migrador normal
+aplicou então as migrations 018 e 019.
+
+Em produção, a consulta inicial confirmou que a migration 018 já estava
+aplicada, o índice único estava válido e não havia telefones canônicos
+duplicados. Depois do deploy realizado pelo usuário, o Console da DigitalOcean
+confirmou a aplicação normal da migration 019, a ativação do aviso
+`aviso_privacidade_v4` e a nova constraint de idade.
 
 ## 3. Arquivos alterados
 
@@ -94,6 +103,10 @@ Prévia frontend
 Build frontend
 72 módulos transformados; aprovado.
 
+Validação controlada em produção
+Migrations 018/019 presentes, idade 13 aceita, idade negativa rejeitada e
+zero registros de teste persistidos.
+
 node --check
 Arquivos backend alterados aprovados.
 
@@ -101,8 +114,9 @@ git diff --check
 Aprovado.
 ```
 
-Nenhuma chamada real à Meta foi executada, nenhuma mensagem foi enviada e
-nenhum banco de produção foi acessado.
+Nenhuma chamada real à Meta foi executada e nenhuma mensagem foi enviada. As
+consultas e o teste transacional de produção foram executados pelo usuário no
+Console da DigitalOcean, sem exibir credenciais e com `ROLLBACK` integral.
 
 ## 5. Conclusão
 

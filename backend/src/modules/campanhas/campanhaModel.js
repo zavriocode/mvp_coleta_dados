@@ -686,17 +686,43 @@ async function registrarFalhaSincronizacaoLimiteMeta(dados) {
   `, [dados.origem, dados.codigoErro, dados.usuarioId || null]);
 }
 
+function avaliarProtecaoExclusaoTemplate(template) {
+  const aprovado = String(template.meta_status_oficial || '').trim().toUpperCase() === 'APPROVED';
+  const rascunhoInterno = template.meta_origem === 'interno' &&
+    template.meta_status === 'rascunho' && !template.meta_template_id;
+  const possuiHistoricoAssociado = template.possui_campanha === true ||
+    template.possui_comunicacao === true || template.possui_historico_associado === true;
+  const podeExcluir = !aprovado && rascunhoInterno && !possuiHistoricoAssociado;
+
+  return Object.assign({}, template, {
+    pode_excluir: podeExcluir,
+    motivo_bloqueio_exclusao: podeExcluir ? null :
+      'Este modelo não pode ser excluído porque está aprovado pela Meta ou possui histórico associado.'
+  });
+}
+
 async function listarTemplates() {
   const resultado = await banco.query(`
-    SELECT id, nome, categoria, texto, ativo, meta_nome, meta_idioma,
+    SELECT modelo.id, modelo.nome, modelo.categoria, modelo.texto, modelo.ativo,
+      modelo.meta_nome, modelo.meta_idioma,
       meta_categoria, meta_status, meta_template_id, meta_componentes,
       meta_status_oficial, meta_origem, meta_submetido_em,
-      meta_sincronizado_em, meta_configuracao_envio, criado_em, atualizado_em
-    FROM modelos_mensagem
+      meta_sincronizado_em, meta_configuracao_envio, modelo.criado_em,
+      modelo.atualizado_em,
+      EXISTS (SELECT 1 FROM campanhas WHERE modelo_id = modelo.id) AS possui_campanha,
+      EXISTS (SELECT 1 FROM comunicacoes WHERE modelo_id = modelo.id) AS possui_comunicacao,
+      EXISTS (
+        SELECT 1
+        FROM historico_modelos_mensagem_meta AS historico
+        WHERE historico.modelo_id = modelo.id
+          AND historico.acao NOT IN ('rascunho_criado', 'rascunho_atualizado')
+      ) AS possui_historico_associado
+    FROM modelos_mensagem AS modelo
     WHERE meta_status_oficial IS DISTINCT FROM 'NOT_FOUND'
+      AND excluido_em IS NULL
     ORDER BY ativo DESC, nome
   `);
-  return resultado.rows;
+  return resultado.rows.map(avaliarProtecaoExclusaoTemplate);
 }
 
 async function salvarTemplate(id, dados, usuarioId) {
@@ -706,7 +732,7 @@ async function salvarTemplate(id, dados, usuarioId) {
     let template;
     if (id) {
       await cliente.query('SELECT pg_advisory_xact_lock(41030, $1)', [id]);
-      const atual = await cliente.query('SELECT meta_template_id FROM modelos_mensagem WHERE id=$1 FOR UPDATE', [id]);
+      const atual = await cliente.query('SELECT meta_template_id FROM modelos_mensagem WHERE id=$1 AND excluido_em IS NULL FOR UPDATE', [id]);
       if (!atual.rows[0]) { await cliente.query('ROLLBACK'); return null; }
       if (atual.rows[0].meta_template_id) { const erro = new Error('Template oficial nao pode ser editado como rascunho.'); erro.codigo='TEMPLATE_JA_SUBMETIDO'; throw erro; }
       template = (await cliente.query(`
@@ -714,7 +740,7 @@ async function salvarTemplate(id, dados, usuarioId) {
           meta_nome=$5, meta_idioma=$6, meta_categoria=$7, meta_status='rascunho',
           meta_componentes=$8::jsonb, meta_configuracao_envio=$9::jsonb,
           atualizado_por_usuario_id=$10, atualizado_em=CURRENT_TIMESTAMP
-        WHERE id=$11 RETURNING *
+        WHERE id=$11 AND excluido_em IS NULL RETURNING *
       `, [dados.nome,dados.categoria,dados.conteudo,dados.ativo,dados.metaNome,
         dados.metaIdioma,dados.metaCategoria,JSON.stringify(dados.componentes),
         JSON.stringify(dados.configuracaoEnvio),usuarioId,id])).rows[0];
@@ -740,7 +766,59 @@ async function salvarTemplate(id, dados, usuarioId) {
 }
 
 async function buscarTemplatePorId(id) {
-  return (await banco.query('SELECT * FROM modelos_mensagem WHERE id=$1', [id])).rows[0] || null;
+  return (await banco.query('SELECT * FROM modelos_mensagem WHERE id=$1 AND excluido_em IS NULL', [id])).rows[0] || null;
+}
+
+async function excluirTemplate(id, usuarioId) {
+  const cliente = await banco.connect();
+  try {
+    await cliente.query('BEGIN');
+    await cliente.query('SELECT pg_advisory_xact_lock(41030, $1)', [id]);
+    const atual = (await cliente.query(`
+      SELECT modelo.*,
+        EXISTS (SELECT 1 FROM campanhas WHERE modelo_id = modelo.id) AS possui_campanha,
+        EXISTS (SELECT 1 FROM comunicacoes WHERE modelo_id = modelo.id) AS possui_comunicacao,
+        EXISTS (
+          SELECT 1
+          FROM historico_modelos_mensagem_meta AS historico
+          WHERE historico.modelo_id = modelo.id
+            AND historico.acao NOT IN ('rascunho_criado', 'rascunho_atualizado')
+        ) AS possui_historico_associado
+      FROM modelos_mensagem AS modelo
+      WHERE modelo.id = $1 AND modelo.excluido_em IS NULL
+      FOR UPDATE
+    `, [id])).rows[0];
+    if (!atual) {
+      await cliente.query('ROLLBACK');
+      return null;
+    }
+    const protecao = avaliarProtecaoExclusaoTemplate(atual);
+    if (!protecao.pode_excluir) {
+      const erro = new Error(protecao.motivo_bloqueio_exclusao);
+      erro.codigo = 'TEMPLATE_EXCLUSAO_PROTEGIDA';
+      throw erro;
+    }
+    const template = (await cliente.query(`
+      UPDATE modelos_mensagem
+      SET ativo = FALSE, excluido_em = CURRENT_TIMESTAMP,
+        excluido_por_usuario_id = $2, atualizado_por_usuario_id = $2,
+        atualizado_em = CURRENT_TIMESTAMP
+      WHERE id = $1 AND excluido_em IS NULL
+      RETURNING id, nome, excluido_em
+    `, [id, usuarioId])).rows[0];
+    await cliente.query(`
+      INSERT INTO historico_modelos_mensagem_meta
+        (modelo_id, acao, origem, usuario_id, detalhes)
+      VALUES ($1, 'exclusao_logica', 'sistema', $2, '{"registro_preservado":true}'::jsonb)
+    `, [id, usuarioId]);
+    await cliente.query('COMMIT');
+    return template;
+  } catch (erro) {
+    await cliente.query('ROLLBACK');
+    throw erro;
+  } finally {
+    cliente.release();
+  }
 }
 
 async function configurarEnvioTemplate(id, configuracaoEnvio, usuarioId) {
@@ -750,7 +828,7 @@ async function configurarEnvioTemplate(id, configuracaoEnvio, usuarioId) {
     await cliente.query('SELECT pg_advisory_xact_lock(41030, $1)', [id]);
     const resultado = await cliente.query(`UPDATE modelos_mensagem SET meta_configuracao_envio=$1::jsonb,
       atualizado_por_usuario_id=$2,atualizado_em=CURRENT_TIMESTAMP
-      WHERE id=$3 AND meta_template_id IS NOT NULL RETURNING *`, [JSON.stringify(configuracaoEnvio),usuarioId,id]);
+      WHERE id=$3 AND meta_template_id IS NOT NULL AND excluido_em IS NULL RETURNING *`, [JSON.stringify(configuracaoEnvio),usuarioId,id]);
     if (!resultado.rows[0]) { await cliente.query('ROLLBACK'); return null; }
     await cliente.query(`INSERT INTO historico_modelos_mensagem_meta
       (modelo_id,meta_template_id,acao,origem,usuario_id)
@@ -783,7 +861,7 @@ async function submeterTemplateAtomico(id, usuarioId, enviarParaMeta) {
   try {
     await cliente.query('BEGIN');
     await cliente.query('SELECT pg_advisory_xact_lock(41030, $1)', [id]);
-    const atual = (await cliente.query('SELECT * FROM modelos_mensagem WHERE id=$1 FOR UPDATE', [id])).rows[0];
+    const atual = (await cliente.query('SELECT * FROM modelos_mensagem WHERE id=$1 AND excluido_em IS NULL FOR UPDATE', [id])).rows[0];
     if (!atual) { const erro = new Error('Template nao encontrado.'); erro.codigo='TEMPLATE_NAO_ENCONTRADO'; throw erro; }
     if (atual.meta_template_id) { await cliente.query('COMMIT'); return { template: atual, repetido: true }; }
     const oficial = await enviarParaMeta(atual);
@@ -994,6 +1072,7 @@ module.exports = {
   configurarEnvioTemplate,
   criar,
   criarLoteAtomico,
+  excluirTemplate,
   excluirOuArquivar,
   listarTentativasPendentesCampanha,
   listar,

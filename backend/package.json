@@ -9,7 +9,7 @@
   },
   "scripts": {
     "prestart": "npm run banco:migrar",
-    "test": "npm run testar:banco && npm run testar:nomes && npm run testar:publico && npm run testar:admin && npm run testar:manual && npm run testar:importacoes && npm run testar:relatorios && npm run testar:seguranca && npm run testar:privacidade && npm run testar:eventos-exclusoes && npm run testar:campanhas && npm run testar:templates-meta && npm run testar:meta && npm run testar:limite-meta && npm run testar:webhook && npm run testar:backups && npm run testar:resiliencia",
+    "test": "npm run testar:banco && npm run testar:nomes && npm run testar:publico && npm run testar:admin && npm run testar:manual && npm run testar:importacoes && npm run testar:relatorios && npm run testar:seguranca && npm run testar:privacidade && npm run testar:eventos-exclusoes && npm run testar:campanhas && npm run testar:templates-meta && npm run testar:exclusao-modelos && npm run testar:meta && npm run testar:limite-meta && npm run testar:webhook && npm run testar:backups && npm run testar:resiliencia",
     "start": "node src/server.js",
     "heroku-postbuild": "pg_dump --version",
     "criar-admin": "node scripts/criarAdministrador.js",
@@ -29,6 +29,7 @@
     "testar:log-meta": "node scripts/testarLogErroMeta.js",
     "testar:templates-meta": "node scripts/testarTemplatesMeta.js",
     "testar:construtor-botoes": "node scripts/testarConstrutorBotoesModelos.js",
+    "testar:exclusao-modelos": "node scripts/testarExclusaoModelos.js",
     "testar:requisitos-templates": "node scripts/testarRequisitosEnvioTemplates.js",
     "testar:regressao-body-meta": "node scripts/testarRegressaoParametrosBodyMeta.js",
     "testar:retry-body-meta": "node scripts/testarReprocessamentoParametrosBodyMeta.js",

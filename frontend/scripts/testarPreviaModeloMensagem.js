@@ -76,6 +76,9 @@ assert.match(ajuda, /Em análise/);
 assert.match(ajuda, /A Meta é sempre a fonte do status/);
 assert.match(pagina, /Mostrar campanhas arquivadas/);
 assert.match(pagina, /Excluir campanha/);
+assert.match(pagina, /Tem certeza que deseja excluir este modelo\?/);
+assert.match(pagina, /item\.pode_excluir&&<button[^>]*>[\s\S]*Excluir rascunho/);
+assert.match(pagina, /excluirTemplate\(item\.id\)/);
 assert.match(pagina, /Prévia ilustrativa/);
 assert.match(pagina, /Sincronizado diretamente da conta oficial da Meta/);
 assert.match(pagina, /Imagem para envio/);
@@ -99,4 +102,4 @@ assert.match(estilos, /\.grade-template-mensagem \.construtor-botoes-modelo[\s\S
 assert.match(estilos, /\.grade-template-mensagem \.disponibilidade-template[\s\S]*grid-column: 1 \/ -1/);
 assert.match(estilos, /@media \(max-width: 760px\)[\s\S]*\.gerenciar-templates-campanha \.grade-template-mensagem[\s\S]*grid-template-columns: minmax\(0, 1fr\)/);
 
-console.log('Prévia visual de modelos e guia: 60 verificações aprovadas.');
+console.log('Prévia visual de modelos e guia: 63 verificações aprovadas.');

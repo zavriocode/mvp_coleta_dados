@@ -18,6 +18,7 @@ function criarTemplate(dados){return requisitar('/api/admin/campanhas/templates'
 function prepararImagemTemplate(arquivo){const formulario=new FormData();formulario.append('imagem',arquivo);return requisitar('/api/admin/campanhas/templates/imagem-exemplo',{method:'POST',autenticado:true,body:formulario});}
 function prepararImagemEnvioTemplate(arquivo){const formulario=new FormData();formulario.append('imagem',arquivo);return requisitar('/api/admin/campanhas/templates/imagem-envio',{method:'POST',autenticado:true,body:formulario});}
 function atualizarTemplate(id,dados){return requisitar('/api/admin/campanhas/templates/'+id,{method:'PUT',autenticado:true,body:JSON.stringify(dados)});}
+function excluirTemplate(id){return requisitar('/api/admin/campanhas/templates/'+id,{method:'DELETE',autenticado:true});}
 function submeterTemplateMeta(id){return requisitar('/api/admin/campanhas/templates/'+id+'/submeter-meta',{method:'POST',autenticado:true});}
 function sincronizarTemplatesMeta(){return requisitar('/api/admin/campanhas/templates/sincronizar-meta',{method:'POST',autenticado:true});}
 function configurarEnvioTemplate(id,configuracaoEnvio,removerImagem){return requisitar('/api/admin/campanhas/templates/'+id+'/configuracao-envio',{method:'PUT',autenticado:true,body:JSON.stringify({configuracaoEnvio,removerImagem:removerImagem===true})});}
@@ -25,4 +26,4 @@ function obterCapacidade(){return requisitar('/api/admin/campanhas/configuracao/
 function atualizarLimite(valor,motivo){return requisitar('/api/admin/campanhas/configuracao/limite',{method:'PUT',autenticado:true,body:JSON.stringify({valor,motivo})});}
 function sincronizarLimiteMeta(){return requisitar('/api/admin/campanhas/configuracao/limite/sincronizar-meta',{method:'POST',autenticado:true});}
 
-export {alterarStatusCampanha,atualizarCampanha,atualizarLimite,atualizarTemplate,configurarEnvioTemplate,criarCampanha,criarTemplate,enviarTentativa,excluirCampanha,listarCampanhas,listarContatosLote,listarFalhasCampanha,listarLotesCampanha,listarTemplates,obterCapacidade,prepararEnvioCampanha,prepararImagemEnvioTemplate,prepararImagemTemplate,reprocessarTentativa,sincronizarLimiteMeta,sincronizarTemplatesMeta,submeterTemplateMeta,visualizarPreviaFiltros,visualizarPublicoCampanha};
+export {alterarStatusCampanha,atualizarCampanha,atualizarLimite,atualizarTemplate,configurarEnvioTemplate,criarCampanha,criarTemplate,enviarTentativa,excluirCampanha,excluirTemplate,listarCampanhas,listarContatosLote,listarFalhasCampanha,listarLotesCampanha,listarTemplates,obterCapacidade,prepararEnvioCampanha,prepararImagemEnvioTemplate,prepararImagemTemplate,reprocessarTentativa,sincronizarLimiteMeta,sincronizarTemplatesMeta,submeterTemplateMeta,visualizarPreviaFiltros,visualizarPublicoCampanha};

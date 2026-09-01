@@ -448,6 +448,8 @@ CREATE TABLE public.modelos_mensagem (
   meta_submetido_em TIMESTAMPTZ,
   meta_sincronizado_em TIMESTAMPTZ,
   meta_configuracao_envio JSONB NOT NULL DEFAULT '{}'::jsonb,
+  excluido_em TIMESTAMPTZ,
+  excluido_por_usuario_id BIGINT,
   criado_em TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   atualizado_em TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT modelos_mensagem_nome_valido CHECK (LENGTH(TRIM(nome)) >= 2),
@@ -478,7 +480,8 @@ CREATE TABLE public.historico_modelos_mensagem_meta (
   criado_em TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT historico_modelos_mensagem_meta_acao_valida CHECK (
     acao IN ('rascunho_criado', 'rascunho_atualizado', 'configuracao_envio',
-      'submissao', 'sincronizacao', 'vinculo_inicial', 'webhook_status')
+      'submissao', 'sincronizacao', 'vinculo_inicial', 'webhook_status',
+      'exclusao_logica')
   ),
   CONSTRAINT historico_modelos_mensagem_meta_origem_valida CHECK (
     origem IN ('sistema', 'api_meta', 'sincronizacao_meta', 'webhook_meta')
@@ -859,6 +862,7 @@ CREATE INDEX modelos_mensagem_evento_indice ON public.modelos_mensagem (evento_i
 CREATE INDEX modelos_mensagem_meta_status_indice ON public.modelos_mensagem (meta_status, ativo);
 CREATE UNIQUE INDEX modelos_mensagem_meta_template_id_unico ON public.modelos_mensagem (meta_template_id) WHERE meta_template_id IS NOT NULL;
 CREATE INDEX modelos_mensagem_meta_sincronizacao_indice ON public.modelos_mensagem (meta_sincronizado_em DESC) WHERE meta_template_id IS NOT NULL;
+CREATE INDEX modelos_mensagem_exclusao_indice ON public.modelos_mensagem (excluido_em) WHERE excluido_em IS NULL;
 CREATE INDEX historico_modelos_mensagem_meta_modelo_indice ON public.historico_modelos_mensagem_meta (modelo_id, criado_em DESC);
 CREATE INDEX campanhas_ativo_nome_indice ON public.campanhas (ativo DESC, nome);
 CREATE INDEX comunicacoes_contato_indice ON public.comunicacoes (contato_id, criado_em DESC);
@@ -1030,7 +1034,9 @@ ALTER TABLE public.modelos_mensagem
   ADD CONSTRAINT modelos_mensagem_criador_fkey
     FOREIGN KEY (criado_por_usuario_id) REFERENCES public.usuarios(id),
   ADD CONSTRAINT modelos_mensagem_atualizador_fkey
-    FOREIGN KEY (atualizado_por_usuario_id) REFERENCES public.usuarios(id);
+    FOREIGN KEY (atualizado_por_usuario_id) REFERENCES public.usuarios(id),
+  ADD CONSTRAINT modelos_mensagem_excluidor_fkey
+    FOREIGN KEY (excluido_por_usuario_id) REFERENCES public.usuarios(id) ON DELETE SET NULL;
 
 ALTER TABLE public.comunicacoes
   ADD CONSTRAINT comunicacoes_contato_fkey
@@ -1342,6 +1348,7 @@ INSERT INTO public.schema_migrations (
   ('016', '016_alinhar_status_campanhas.sql', '0a9ae25dce9417295dc249e284fbe7f9b2584488887c095d0405068ab6a85b3d'),
   ('017', '017_arquivar_campanhas_com_historico.sql', 'c0f9c7f3fd353b8277ba199cf113c6654ed741ae95421b44223205fed14af654'),
   ('018', '018_garantir_telefone_canonico_unico.sql', '782bf9795daa02bbdd7e30a9efaabd7888977447efed1a4cc99327ba3af5cff2'),
-  ('019', '019_remover_limite_etario_cadastros.sql', 'fa99c9555c259385314b9d38fe35ac2426ae3782b593cf0228b27598b42348b9');
+  ('019', '019_remover_limite_etario_cadastros.sql', 'fa99c9555c259385314b9d38fe35ac2426ae3782b593cf0228b27598b42348b9'),
+  ('020', '020_excluir_modelos_sem_apagar_historico.sql', '456f3bae47329d573d9b7b0c9858578f23863f71f11106fdeebc99955ae3b70b');
 
 COMMIT;
