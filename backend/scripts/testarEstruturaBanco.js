@@ -237,7 +237,8 @@ async function validarCatalogo(cliente) {
             '017_arquivar_campanhas_com_historico.sql',
             '018_garantir_telefone_canonico_unico.sql',
             '019_remover_limite_etario_cadastros.sql',
-            '020_excluir_modelos_sem_apagar_historico.sql'
+            '020_excluir_modelos_sem_apagar_historico.sql',
+            '021_resiliencia_envio_webhook.sql'
           )
         ) AS migrations_atuais
     `

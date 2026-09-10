@@ -33,7 +33,8 @@ function prepararErroProvider(erro) {
     titulo: erroLocal ? 'Configuração necessária para o envio' : 'Falha no envio pela Meta',
     descricao: sanitizarTexto(erro.message || 'Falha ao enviar mensagem.', 1000),
     categoria: erroLocal ? 'configuracao_template' : 'meta_cloud_api',
-    permiteNovaTentativa: erro.permiteNovaTentativa === true
+    permiteNovaTentativa: erro.permiteNovaTentativa === true,
+    resultadoIndeterminado: erro.resultadoIndeterminado === true
   };
 }
 
@@ -52,6 +53,7 @@ async function atualizarStatusEntrega(dados) {
     identificadorExterno: identificador,
     chaveEvento: identificador + ':' + status,
     status,
+    statusExternoEm: dados.statusExternoEm || null,
     origem: dados.origem || 'webhook',
     erro: prepararErro(dados.erro)
   });
@@ -97,7 +99,7 @@ async function processarWebhook(payload) {
         alteracoes.push(await atualizarStatusEntrega({
           identificadorExterno: item.id,
           status,
-          statusAtual: 'pendente',
+          statusExternoEm: converterTimestampMeta(item.timestamp),
           origem: 'webhook',
           erro: item.errors && item.errors[0]
         }));
@@ -121,6 +123,14 @@ async function processarWebhook(payload) {
     }
   }
   return alteracoes;
+}
+
+function converterTimestampMeta(valor) {
+  if (valor === undefined || valor === null || valor === '') return null;
+  const segundos = Number(valor);
+  if (!Number.isFinite(segundos) || segundos < 0) return null;
+  const data = new Date(segundos * 1000);
+  return Number.isNaN(data.getTime()) ? null : data;
 }
 
 async function receberIdentificadorExterno(tentativaId, identificadorExterno) {
@@ -149,6 +159,7 @@ async function enviar(tentativaIdRecebido) {
     if (conflitos.includes(erro.codigo)) throw criarAppError(erro.message, 409);
     throw erro;
   }
+  let providerAceitou = false;
   try {
     const resultado = await metaProvider.enviarTemplate({
       telefone: tentativa.telefone_normalizado,
@@ -162,13 +173,27 @@ async function enviar(tentativaIdRecebido) {
       templateComponentes: tentativa.meta_componentes,
       templateConfiguracaoEnvio: tentativa.meta_configuracao_envio
     });
+    providerAceitou = true;
     return await model.concluirEnvio(tentativaId, resultado.identificadorExterno, obterAgora());
   } catch (erro) {
     const falha = prepararErroProvider(erro);
+    if (falha.resultadoIndeterminado || providerAceitou) {
+      falha.codigo = falha.codigo || 'META_RESULTADO_INDETERMINADO';
+      falha.descricao = 'A confirmação final do envio não foi obtida. A mensagem não será reenviada automaticamente.';
+      await model.registrarResultadoIndeterminado(tentativaId, falha, obterAgora());
+      throw criarAppError(falha.descricao, 502);
+    }
     await model.registrarFalhaEnvio(tentativaId, falha, obterAgora());
     const statusHttp = erro.erroLocal === true ? 409 : (erro.statusHttpExterno === 422 ? 422 : 502);
     throw criarAppError(falha.descricao, statusHttp);
   }
+}
+
+async function recuperarProcessamentoPendente() {
+  const tempoLimite = 2 * 60 * 1000;
+  const tentativas = await model.recuperarTentativasParadas(obterAgora(), tempoLimite);
+  const eventos = await model.reprocessarEventosPendentes(1000);
+  return { tentativasIndeterminadas: tentativas, eventosCorrelacionados: eventos };
 }
 
 async function reprocessar(tentativaId) {
@@ -186,5 +211,6 @@ function definirProviderParaTeste(funcao) {
 
 module.exports = {
   atualizarStatusEntrega, definirProviderParaTeste, definirRelogioParaTeste,
-  enviar, prepararEnvio, processarWebhook, receberIdentificadorExterno, reprocessar
+  enviar, prepararEnvio, processarWebhook, receberIdentificadorExterno,
+  recuperarProcessamentoPendente, reprocessar
 };

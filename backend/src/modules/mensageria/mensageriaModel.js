@@ -3,8 +3,12 @@ const consentimentoModel = require('../contatos/consentimentoModel');
 const historicoContatoModel = require('../contatos/historicoContatoModel');
 const ORDEM_STATUS = { pendente: 0, enviando: 1, enviada: 2, entregue: 3, lida: 4, falhou: 5 };
 
-function avaliarTransicao(atual, novo) {
+function avaliarTransicao(atual, novo, statusExternoAtualEm, statusExternoNovoEm) {
   if (atual === novo) return { deveAtualizar: false, motivo: 'status_repetido' };
+  if (statusExternoAtualEm && statusExternoNovoEm &&
+    new Date(statusExternoNovoEm).getTime() < new Date(statusExternoAtualEm).getTime()) {
+    return { deveAtualizar: false, motivo: 'evento_atrasado' };
+  }
   if (atual === 'falhou' || atual === 'lida') return { deveAtualizar: false, motivo: 'status_terminal' };
   if (novo === 'falhou') return { deveAtualizar: true };
   if (ORDEM_STATUS[novo] < ORDEM_STATUS[atual]) return { deveAtualizar: false, motivo: 'evento_atrasado' };
@@ -31,6 +35,91 @@ async function registrarEventoExterno(cliente, identificadorEvento, tipoEvento) 
     RETURNING id
   `, [identificadorEvento, tipoEvento]);
   return Boolean(resultado.rows[0]);
+}
+
+async function obterOuRegistrarEventoStatus(cliente, dados) {
+  await cliente.query(`
+    INSERT INTO eventos_webhook_mensageria (
+      identificador_externo, tipo_evento, identificador_mensagem,
+      status_mensageria, status_externo_em, dados_evento,
+      estado_processamento, atualizado_em
+    ) VALUES ($1,$2,$3,$2,$4,$5::jsonb,'pendente',CURRENT_TIMESTAMP)
+    ON CONFLICT (identificador_externo) DO NOTHING
+  `, [dados.chaveEvento, dados.status, dados.identificadorExterno,
+    dados.statusExternoEm, JSON.stringify({ erro: dados.erro, origem: dados.origem })]);
+  const resultado = await cliente.query(`
+    SELECT * FROM eventos_webhook_mensageria
+    WHERE identificador_externo=$1
+    FOR UPDATE
+  `, [dados.chaveEvento]);
+  return resultado.rows[0];
+}
+
+async function concluirEventoStatus(cliente, evento, motivo) {
+  await cliente.query(`
+    UPDATE eventos_webhook_mensageria
+    SET estado_processamento='processado', atualizado_em=CURRENT_TIMESTAMP,
+        dados_evento=dados_evento || $2::jsonb
+    WHERE id=$1
+  `, [evento.id, JSON.stringify({ resultado: motivo })]);
+}
+
+async function processarEventoStatus(cliente, evento) {
+  if (evento.estado_processamento === 'processado') {
+    return { processado: false, motivo: 'evento_repetido' };
+  }
+  const tentativa = await buscarTentativaPorIdentificador(cliente, evento.identificador_mensagem);
+  if (!tentativa) return { processado: false, motivo: 'tentativa_nao_encontrada', pendente: true };
+  const dadosEvento = evento.dados_evento || {};
+  const erro = dadosEvento.erro || {};
+  const transicao = avaliarTransicao(
+    tentativa.status,
+    evento.status_mensageria,
+    tentativa.status_externo_em,
+    evento.status_externo_em
+  );
+  if (!transicao.deveAtualizar) {
+    await concluirEventoStatus(cliente, evento, transicao.motivo);
+    return { processado: false, motivo: transicao.motivo };
+  }
+  await cliente.query(`
+    UPDATE campanha_tentativas
+    SET status=$2::varchar, codigo_erro_externo=$3, titulo_erro=$4,
+      descricao_erro=$5, categoria_erro=$6, permite_nova_tentativa=$7,
+      status_externo_em=COALESCE($8, status_externo_em),
+      resultado_indeterminado_em=NULL, resultado_indeterminado_codigo=NULL,
+      finalizada_em=CASE WHEN $2::varchar IN ('lida','falhou') THEN CURRENT_TIMESTAMP ELSE finalizada_em END
+    WHERE id=$1
+  `, [tentativa.id, evento.status_mensageria, erro.codigo, erro.titulo,
+    erro.descricao, erro.categoria, erro.permiteNovaTentativa === true,
+    evento.status_externo_em]);
+  await cliente.query(`
+    UPDATE campanha_participacoes
+    SET status=$2::varchar, atualizado_em=CURRENT_TIMESTAMP
+    WHERE id=$1
+  `, [tentativa.participacao_id, evento.status_mensageria]);
+  await cliente.query(`
+    INSERT INTO historico_status_mensageria (
+      participacao_id,tentativa_id,status_anterior,status_novo,origem,
+      codigo_erro_sanitizado,descricao_erro_sanitizada,criado_em
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,COALESCE($8,CURRENT_TIMESTAMP))
+  `, [tentativa.participacao_id, tentativa.id, tentativa.status,
+    evento.status_mensageria, dadosEvento.origem || 'webhook', erro.codigo,
+    erro.descricao, evento.status_externo_em]);
+  await concluirEventoStatus(cliente, evento, 'status_atualizado');
+  return { processado: true, participacaoId: tentativa.participacao_id };
+}
+
+async function processarEventosPendentesPorIdentificador(cliente, identificadorExterno) {
+  const eventos = await cliente.query(`
+    SELECT * FROM eventos_webhook_mensageria
+    WHERE identificador_mensagem=$1 AND estado_processamento='pendente'
+    ORDER BY status_externo_em NULLS LAST, id
+    FOR UPDATE
+  `, [identificadorExterno]);
+  const resultados = [];
+  for (const evento of eventos.rows) resultados.push(await processarEventoStatus(cliente, evento));
+  return resultados;
 }
 
 async function registrarMensagemRecebida(identificadorExterno) {
@@ -249,7 +338,9 @@ async function concluirEnvio(tentativaId, identificadorExterno, agora) {
   try {
     await cliente.query('BEGIN');
     const resultado = await cliente.query(`UPDATE campanha_tentativas
-      SET status='enviada', identificador_externo=$2 WHERE id=$1 AND status='enviando'
+      SET status='enviada', identificador_externo=$2,
+          resultado_indeterminado_em=NULL, resultado_indeterminado_codigo=NULL
+      WHERE id=$1 AND status='enviando'
       RETURNING participacao_id`, [tentativaId, identificadorExterno]);
     if (!resultado.rows[0]) throw new Error('Tentativa nao esta pronta para confirmacao.');
     const participacaoId = resultado.rows[0].participacao_id;
@@ -257,6 +348,7 @@ async function concluirEnvio(tentativaId, identificadorExterno, agora) {
     await cliente.query(`INSERT INTO historico_status_mensageria
       (participacao_id,tentativa_id,status_anterior,status_novo,origem,criado_em)
       VALUES ($1,$2,'enviando','enviada','processamento',$3)`, [participacaoId, tentativaId, agora]);
+    await processarEventosPendentesPorIdentificador(cliente, identificadorExterno);
     await cliente.query('COMMIT');
     return { id: tentativaId, status: 'enviada', identificadorExterno };
   } catch (erro) { await cliente.query('ROLLBACK'); throw erro; }
@@ -269,7 +361,8 @@ async function registrarFalhaEnvio(tentativaId, erroSanitizado, agora) {
     await cliente.query('BEGIN');
     const resultado = await cliente.query(`UPDATE campanha_tentativas SET status='falhou',
       codigo_erro_externo=$2,titulo_erro=$3,descricao_erro=$4,categoria_erro=$5,
-      permite_nova_tentativa=$6,finalizada_em=$7
+      permite_nova_tentativa=$6,finalizada_em=$7,
+      resultado_indeterminado_em=NULL,resultado_indeterminado_codigo=NULL
       WHERE id=$1 AND status='enviando' RETURNING participacao_id`,
     [tentativaId, erroSanitizado.codigo, erroSanitizado.titulo, erroSanitizado.descricao,
       erroSanitizado.categoria, erroSanitizado.permiteNovaTentativa, agora]);
@@ -285,46 +378,81 @@ async function registrarFalhaEnvio(tentativaId, erroSanitizado, agora) {
   finally { cliente.release(); }
 }
 
+async function registrarResultadoIndeterminado(tentativaId, erroSanitizado, agora) {
+  const cliente = await banco.connect();
+  try {
+    await cliente.query('BEGIN');
+    const resultado = await cliente.query(`
+      UPDATE campanha_tentativas
+      SET resultado_indeterminado_em=$2, resultado_indeterminado_codigo=$3,
+          codigo_erro_externo=$3, titulo_erro=$4, descricao_erro=$5,
+          categoria_erro='resultado_indeterminado', permite_nova_tentativa=FALSE
+      WHERE id=$1 AND status='enviando' AND identificador_externo IS NULL
+        AND resultado_indeterminado_em IS NULL
+      RETURNING participacao_id
+    `, [tentativaId, agora, erroSanitizado.codigo || 'META_RESULTADO_INDETERMINADO',
+      'Resultado do envio ainda não confirmado', erroSanitizado.descricao]);
+    if (resultado.rows[0]) {
+      await cliente.query(`
+        INSERT INTO historico_status_mensageria (
+          participacao_id,tentativa_id,status_anterior,status_novo,origem,
+          codigo_erro_sanitizado,descricao_erro_sanitizada,criado_em
+        ) VALUES ($1,$2,'enviando','enviando','processamento',$3,$4,$5)
+      `, [resultado.rows[0].participacao_id, tentativaId,
+        erroSanitizado.codigo || 'META_RESULTADO_INDETERMINADO',
+        erroSanitizado.descricao, agora]);
+    }
+    await cliente.query('COMMIT');
+    return Boolean(resultado.rows[0]);
+  } catch (erro) { await cliente.query('ROLLBACK'); throw erro; }
+  finally { cliente.release(); }
+}
+
+async function recuperarTentativasParadas(agora, tempoLimiteMs) {
+  const cliente = await banco.connect();
+  try {
+    await cliente.query('BEGIN');
+    const limite = new Date(new Date(agora).getTime() - tempoLimiteMs);
+    const resultado = await cliente.query(`
+      UPDATE campanha_tentativas
+      SET resultado_indeterminado_em=$1,
+          resultado_indeterminado_codigo='PROCESSO_INTERROMPIDO',
+          codigo_erro_externo='PROCESSO_INTERROMPIDO',
+          titulo_erro='Resultado do envio ainda não confirmado',
+          descricao_erro='O processamento foi interrompido antes da confirmação local. O envio não será repetido automaticamente.',
+          categoria_erro='resultado_indeterminado', permite_nova_tentativa=FALSE
+      WHERE status='enviando' AND identificador_externo IS NULL
+        AND resultado_indeterminado_em IS NULL AND iniciada_em < $2
+      RETURNING id, participacao_id
+    `, [agora, limite]);
+    if (resultado.rows.length) {
+      await cliente.query(`
+        INSERT INTO historico_status_mensageria (
+          participacao_id,tentativa_id,status_anterior,status_novo,origem,
+          codigo_erro_sanitizado,descricao_erro_sanitizada,criado_em
+        )
+        SELECT participacao_id,id,'enviando','enviando','processamento',
+          'PROCESSO_INTERROMPIDO',
+          'O processamento foi interrompido antes da confirmação local. O envio não será repetido automaticamente.',
+          $1
+        FROM UNNEST($2::bigint[],$3::bigint[]) AS item(id,participacao_id)
+      `, [agora, resultado.rows.map(function (item) { return item.id; }),
+        resultado.rows.map(function (item) { return item.participacao_id; })]);
+    }
+    await cliente.query('COMMIT');
+    return resultado.rows.length;
+  } catch (erro) { await cliente.query('ROLLBACK'); throw erro; }
+  finally { cliente.release(); }
+}
+
 async function atualizarStatusPorIdentificador(dados) {
   const cliente = await banco.connect();
   try {
     await cliente.query('BEGIN');
-    const novoEvento = await registrarEventoExterno(cliente, dados.chaveEvento, dados.status);
-    if (!novoEvento) {
-      await cliente.query('COMMIT');
-      return { processado: false, motivo: 'evento_repetido' };
-    }
-    const tentativa = await buscarTentativaPorIdentificador(cliente, dados.identificadorExterno);
-    if (!tentativa) {
-      await cliente.query('COMMIT');
-      return { processado: false, motivo: 'tentativa_nao_encontrada' };
-    }
-    const transicao = avaliarTransicao(tentativa.status, dados.status);
-    if (!transicao.deveAtualizar) {
-      await cliente.query('COMMIT');
-      return { processado: false, motivo: transicao.motivo };
-    }
-    await cliente.query(`
-      UPDATE campanha_tentativas
-      SET status=$2::varchar, codigo_erro_externo=$3, titulo_erro=$4,
-        descricao_erro=$5, categoria_erro=$6,
-        permite_nova_tentativa=$7,
-        finalizada_em=CASE WHEN $2::varchar IN ('lida','falhou') THEN CURRENT_TIMESTAMP ELSE finalizada_em END
-      WHERE id=$1
-    `, [tentativa.id, dados.status, dados.erro.codigo, dados.erro.titulo,
-      dados.erro.descricao, dados.erro.categoria, dados.erro.permiteNovaTentativa]);
-    await cliente.query(`
-      UPDATE campanha_participacoes SET status=$2::varchar, atualizado_em=CURRENT_TIMESTAMP WHERE id=$1
-    `, [tentativa.participacao_id, dados.status]);
-    await cliente.query(`
-      INSERT INTO historico_status_mensageria (
-        participacao_id,tentativa_id,status_anterior,status_novo,origem,
-        codigo_erro_sanitizado,descricao_erro_sanitizada
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7)
-    `, [tentativa.participacao_id, tentativa.id, tentativa.status, dados.status,
-      dados.origem, dados.erro.codigo, dados.erro.descricao]);
+    const evento = await obterOuRegistrarEventoStatus(cliente, dados);
+    const resultado = await processarEventoStatus(cliente, evento);
     await cliente.query('COMMIT');
-    return { processado: true, participacaoId: tentativa.participacao_id };
+    return resultado;
   } catch (erro) {
     await cliente.query('ROLLBACK');
     throw erro;
@@ -334,12 +462,52 @@ async function atualizarStatusPorIdentificador(dados) {
 }
 
 async function vincularIdentificadorExterno(tentativaId, identificadorExterno) {
-  const resultado = await banco.query(`
-    UPDATE campanha_tentativas SET identificador_externo=$2
-    WHERE id=$1 AND identificador_externo IS NULL
-    RETURNING *
-  `, [tentativaId, identificadorExterno]);
-  return resultado.rows[0] || null;
+  const cliente = await banco.connect();
+  try {
+    await cliente.query('BEGIN');
+    const resultado = await cliente.query(`
+      UPDATE campanha_tentativas
+      SET identificador_externo=$2, resultado_indeterminado_em=NULL,
+          resultado_indeterminado_codigo=NULL
+      WHERE id=$1 AND identificador_externo IS NULL
+      RETURNING *
+    `, [tentativaId, identificadorExterno]);
+    if (resultado.rows[0]) await processarEventosPendentesPorIdentificador(cliente, identificadorExterno);
+    await cliente.query('COMMIT');
+    return resultado.rows[0] || null;
+  } catch (erro) { await cliente.query('ROLLBACK'); throw erro; }
+  finally { cliente.release(); }
+}
+
+async function reprocessarEventosPendentes(limite) {
+  const eventos = await banco.query(`
+    SELECT evento.id
+    FROM eventos_webhook_mensageria evento
+    WHERE evento.estado_processamento='pendente'
+      AND EXISTS (
+        SELECT 1 FROM campanha_tentativas tentativa
+        WHERE tentativa.identificador_externo=evento.identificador_mensagem
+      )
+    ORDER BY evento.id
+    LIMIT $1
+  `, [limite]);
+  let processados = 0;
+  for (const item of eventos.rows) {
+    const cliente = await banco.connect();
+    try {
+      await cliente.query('BEGIN');
+      const atual = await cliente.query(`
+        SELECT * FROM eventos_webhook_mensageria WHERE id=$1 FOR UPDATE
+      `, [item.id]);
+      if (atual.rows[0] && atual.rows[0].estado_processamento === 'pendente') {
+        const resultado = await processarEventoStatus(cliente, atual.rows[0]);
+        if (resultado.processado || !resultado.pendente) processados += 1;
+      }
+      await cliente.query('COMMIT');
+    } catch (erro) { await cliente.query('ROLLBACK'); throw erro; }
+    finally { cliente.release(); }
+  }
+  return processados;
 }
 
 async function buscarTentativa(id) {
@@ -411,6 +579,7 @@ async function reprocessarFalha(tentativaId) {
 module.exports = {
   atualizarStatusPorIdentificador, buscarTentativa, buscarTentativaPorIdentificadorPublico,
   concluirEnvio, iniciarEnvio,
-  registrarFalhaEnvio, registrarMensagemRecebida, registrarOptOut,
+  recuperarTentativasParadas, registrarFalhaEnvio, registrarMensagemRecebida,
+  registrarOptOut, registrarResultadoIndeterminado, reprocessarEventosPendentes,
   reprocessarFalha, vincularIdentificadorExterno
 };

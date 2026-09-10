@@ -46,6 +46,7 @@
     "testar:eventos-exclusoes": "node scripts/testarEventosExclusoes.js",
     "testar:backups": "node scripts/testarBackups.js",
     "testar:resiliencia": "node scripts/testarResiliencia.js",
+    "testar:resiliencia-mensageria": "node scripts/testarResilienciaMensageria.js",
     "testar:e2e": "node scripts/testarJornadasE2E.js",
     "testar:schema-vazio": "node scripts/testarSchemaVazio.js",
     "banco:migrar": "node scripts/executarMigrations.js",

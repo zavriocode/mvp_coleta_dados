@@ -320,6 +320,7 @@ async function listarContatosLote(campanhaId, loteId) {
       participacao.status,
       tentativa_atual.id AS tentativa_id,
       tentativa_atual.status AS tentativa_status,
+      tentativa_atual.resultado_indeterminado_em,
       status_atual.criado_em AS tentativa_status_em,
       CASE WHEN opt_out.id IS NOT NULL THEN 'opt_out' END AS acao_contato,
       opt_out.criado_em AS acao_contato_em
@@ -327,7 +328,7 @@ async function listarContatosLote(campanhaId, loteId) {
     INNER JOIN campanha_lotes AS lote ON lote.id = participacao.lote_original_id
     INNER JOIN contatos AS contato ON contato.id = participacao.contato_id
     LEFT JOIN LATERAL (
-      SELECT tentativa.id, tentativa.status
+      SELECT tentativa.id, tentativa.status, tentativa.resultado_indeterminado_em
       FROM campanha_tentativas tentativa
       WHERE tentativa.participacao_id=participacao.id
       ORDER BY tentativa.numero_tentativa DESC LIMIT 1

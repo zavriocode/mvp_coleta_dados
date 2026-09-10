@@ -66,11 +66,12 @@ function registrarErroTecnicoMeta(resposta, corpo, operacao) {
   catch (erroLog) { /* O log técnico não pode alterar o tratamento do envio. */ }
 }
 
-function criarErroIntegracao(mensagem, codigo, statusHttp, permiteNovaTentativa) {
+function criarErroIntegracao(mensagem, codigo, statusHttp, permiteNovaTentativa, resultadoIndeterminado) {
   const erro = new Error(mensagem);
   erro.codigoIntegracao = textoSeguro(codigo, 80) || 'META_ERRO';
   erro.statusHttpExterno = Number(statusHttp) || null;
   erro.permiteNovaTentativa = permiteNovaTentativa === true;
+  erro.resultadoIndeterminado = resultadoIndeterminado === true;
   return erro;
 }
 
@@ -343,6 +344,7 @@ async function requisitarMeta(caminho, opcoes, operacao) {
     try { corpo = await lerResposta(resposta); }
     catch (erroResposta) {
       if (!resposta.ok) registrarErroTecnicoMeta(resposta, null, operacao);
+      erroResposta.resultadoIndeterminado = resposta.ok === true;
       throw erroResposta;
     }
     if (!resposta.ok) {
@@ -351,9 +353,9 @@ async function requisitarMeta(caminho, opcoes, operacao) {
     }
     return { corpo, status: resposta.status };
   } catch (erro) {
-    if (erro.name === 'AbortError') throw criarErroIntegracao('A Meta nao respondeu dentro do tempo esperado.', 'META_TIMEOUT', 504, true);
+    if (erro.name === 'AbortError') throw criarErroIntegracao('A Meta nao respondeu dentro do tempo esperado.', 'META_TIMEOUT', 504, false, true);
     if (erro.codigoIntegracao) throw erro;
-    throw criarErroIntegracao('Nao foi possivel comunicar com a Meta.', 'META_INDISPONIVEL', 503, true);
+    throw criarErroIntegracao('Nao foi possivel comunicar com a Meta.', 'META_INDISPONIVEL', 503, false, true);
   } finally { clearTimeout(temporizador); }
 }
 
@@ -366,7 +368,7 @@ async function enviarTemplate(comando) {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
   }, 'envio');
   const identificador = resposta.corpo && Array.isArray(resposta.corpo.messages) && resposta.corpo.messages[0] && resposta.corpo.messages[0].id;
-  if (!identificador) throw criarErroIntegracao('A Meta nao confirmou o identificador da mensagem.', 'META_RESPOSTA_INVALIDA', resposta.status, true);
+  if (!identificador) throw criarErroIntegracao('A Meta nao confirmou o identificador da mensagem.', 'META_RESPOSTA_INVALIDA', resposta.status, false, true);
   return { identificadorExterno: textoSeguro(identificador, 255) };
 }
 

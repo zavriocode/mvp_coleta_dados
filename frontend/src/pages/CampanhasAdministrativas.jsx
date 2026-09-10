@@ -96,7 +96,7 @@ function ListaContatosCampanha({contatos,vazia}){
   if(!contatos||contatos.length===0)return <div className="estado-vazio-campanha"><strong>{vazia||'Nenhum contato disponível.'}</strong></div>;
   return <div className="lista-contatos-campanha">{contatos.map(function(contato,indice){return <article className="contato-previa-campanha" key={contato.nome+'-'+contato.telefoneMascarado+'-'+indice}>
     <div><strong>{contato.nome}</strong><span>{telefoneMascarado(contato.telefoneMascarado)}</span></div>
-    <dl><div><dt>Bairro</dt><dd>{contato.bairro}</dd></div><div><dt>Problema</dt><dd>{contato.problema}</dd></div>{contato.status&&!contato.tentativaStatus&&<div><dt>Status</dt><dd>{textoStatus(contato.status)}</dd></div>}{contato.tentativaStatus&&<div><dt>Status da mensagem</dt><dd>{textoStatus(contato.tentativaStatus)} — {formatarDataHoraHistorico(contato.tentativaStatusEm)}</dd></div>}{contato.acaoContato==='opt_out'&&<div><dt>Ação do contato</dt><dd>Não deseja mais receber contatos — {formatarDataHoraHistorico(contato.acaoContatoEm)}</dd></div>}</dl>
+    <dl><div><dt>Bairro</dt><dd>{contato.bairro}</dd></div><div><dt>Problema</dt><dd>{contato.problema}</dd></div>{contato.status&&!contato.tentativaStatus&&<div><dt>Status</dt><dd>{textoStatus(contato.status)}</dd></div>}{contato.tentativaStatus&&<div><dt>Status da mensagem</dt><dd>{contato.resultadoIndeterminadoEm?'Confirmação pendente — não reenviar':textoStatus(contato.tentativaStatus)} — {formatarDataHoraHistorico(contato.resultadoIndeterminadoEm||contato.tentativaStatusEm)}</dd></div>}{contato.acaoContato==='opt_out'&&<div><dt>Ação do contato</dt><dd>Não deseja mais receber contatos — {formatarDataHoraHistorico(contato.acaoContatoEm)}</dd></div>}</dl>
   </article>;})}</div>;
 }
 

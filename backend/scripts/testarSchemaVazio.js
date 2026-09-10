@@ -67,7 +67,7 @@ async function executar() {
       textos: 3,
       usuarios: 0,
       contatos: 0,
-      migrations: 20
+      migrations: 21
     });
     const diretorioMigrations = path.join(__dirname, '..', 'database', 'migrations');
     const migrationsArquivos = fs.readdirSync(diretorioMigrations)
@@ -91,7 +91,7 @@ async function executar() {
       migrationsArquivos,
       'O ledger do schema final nao corresponde aos arquivos de migration.'
     );
-    console.log('Schema final validado em banco vazio: 31 tabelas e 166 bairros.');
+    console.log('Schema final validado em banco vazio: 31 tabelas, 166 bairros e 21 migrations.');
   } finally {
     if (bancoTeste) {
       await bancoTeste.end();

@@ -596,11 +596,18 @@ CREATE TABLE public.campanha_tentativas (
   descricao_erro TEXT,
   categoria_erro VARCHAR(100),
   permite_nova_tentativa BOOLEAN NOT NULL DEFAULT FALSE,
+  resultado_indeterminado_em TIMESTAMPTZ,
+  resultado_indeterminado_codigo VARCHAR(80),
+  status_externo_em TIMESTAMPTZ,
   iniciada_em TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   finalizada_em TIMESTAMPTZ,
   criado_em TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT campanha_tentativas_numero_valido CHECK (numero_tentativa > 0),
   CONSTRAINT campanha_tentativas_status_valido CHECK (status IN ('pendente','enviando','enviada','entregue','lida','falhou')),
+  CONSTRAINT campanha_tentativas_resultado_indeterminado_coerente CHECK (
+    resultado_indeterminado_em IS NULL
+    OR (status = 'enviando' AND identificador_externo IS NULL)
+  ),
   CONSTRAINT campanha_tentativas_numero_unico UNIQUE (participacao_id, numero_tentativa),
   CONSTRAINT campanha_tentativas_externo_unico UNIQUE (identificador_externo)
 );
@@ -636,7 +643,22 @@ CREATE TABLE public.eventos_webhook_mensageria (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   identificador_externo VARCHAR(255) NOT NULL UNIQUE,
   tipo_evento VARCHAR(80) NOT NULL,
-  processado_em TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  processado_em TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  identificador_mensagem VARCHAR(255),
+  status_mensageria VARCHAR(20),
+  status_externo_em TIMESTAMPTZ,
+  dados_evento JSONB NOT NULL DEFAULT '{}'::jsonb,
+  estado_processamento VARCHAR(20) NOT NULL DEFAULT 'processado',
+  atualizado_em TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT eventos_webhook_estado_processamento_valido CHECK (
+    estado_processamento IN ('pendente', 'processado')
+  ),
+  CONSTRAINT eventos_webhook_status_mensageria_valido CHECK (
+    status_mensageria IS NULL OR status_mensageria IN ('enviada','entregue','lida','falhou')
+  ),
+  CONSTRAINT eventos_webhook_dados_evento_validos CHECK (
+    jsonb_typeof(dados_evento) = 'object'
+  )
 );
 
 CREATE TABLE public.sincronizacoes_limite_meta (
@@ -881,7 +903,13 @@ CREATE INDEX campanha_participacoes_lote_indice ON public.campanha_participacoes
 CREATE INDEX campanha_participacoes_status_indice ON public.campanha_participacoes (campanha_id, status);
 CREATE INDEX campanha_participacoes_reserva_indice ON public.campanha_participacoes (reservado_em);
 CREATE INDEX campanha_tentativas_status_indice ON public.campanha_tentativas (status, criado_em);
+CREATE INDEX campanha_tentativas_resultado_indeterminado_indice
+  ON public.campanha_tentativas (resultado_indeterminado_em)
+  WHERE resultado_indeterminado_em IS NOT NULL;
 CREATE INDEX historico_status_participacao_indice ON public.historico_status_mensageria (participacao_id, criado_em DESC);
+CREATE INDEX eventos_webhook_mensageria_pendentes_indice
+  ON public.eventos_webhook_mensageria (identificador_mensagem, id)
+  WHERE estado_processamento = 'pendente';
 
 CREATE INDEX tentativas_login_email_data_indice
   ON public.tentativas_login (LOWER(email_informado), criado_em DESC);
@@ -1349,6 +1377,7 @@ INSERT INTO public.schema_migrations (
   ('017', '017_arquivar_campanhas_com_historico.sql', 'c0f9c7f3fd353b8277ba199cf113c6654ed741ae95421b44223205fed14af654'),
   ('018', '018_garantir_telefone_canonico_unico.sql', '782bf9795daa02bbdd7e30a9efaabd7888977447efed1a4cc99327ba3af5cff2'),
   ('019', '019_remover_limite_etario_cadastros.sql', 'fa99c9555c259385314b9d38fe35ac2426ae3782b593cf0228b27598b42348b9'),
-  ('020', '020_excluir_modelos_sem_apagar_historico.sql', '456f3bae47329d573d9b7b0c9858578f23863f71f11106fdeebc99955ae3b70b');
+  ('020', '020_excluir_modelos_sem_apagar_historico.sql', '456f3bae47329d573d9b7b0c9858578f23863f71f11106fdeebc99955ae3b70b'),
+  ('021', '021_resiliencia_envio_webhook.sql', '89c194e0f41429fc904f55bac66c259155346d1e5dc470c6d3d2f5e25b849069');
 
 COMMIT;

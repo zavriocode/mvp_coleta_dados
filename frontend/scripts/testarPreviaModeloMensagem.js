@@ -91,6 +91,7 @@ assert.match(pagina, /Não foi possível salvar as informações de envio/);
 assert.match(pagina, /parameter_format/);
 assert.match(pagina, /Escolha uma informação/);
 assert.match(pagina, /Status da mensagem/);
+assert.match(pagina, /Confirmação pendente — não reenviar/);
 assert.match(pagina, /A\u00e7\u00e3o do contato/);
 assert.match(detalhesContato, /N\u00e3o deseja mais receber contatos/);
 assert.match(configuracaoVercel, /img-src 'self' data: blob: https:/);
@@ -102,4 +103,4 @@ assert.match(estilos, /\.grade-template-mensagem \.construtor-botoes-modelo[\s\S
 assert.match(estilos, /\.grade-template-mensagem \.disponibilidade-template[\s\S]*grid-column: 1 \/ -1/);
 assert.match(estilos, /@media \(max-width: 760px\)[\s\S]*\.gerenciar-templates-campanha \.grade-template-mensagem[\s\S]*grid-template-columns: minmax\(0, 1fr\)/);
 
-console.log('Prévia visual de modelos e guia: 63 verificações aprovadas.');
+console.log('Prévia visual de modelos e guia: 64 verificações aprovadas.');

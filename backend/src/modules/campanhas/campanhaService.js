@@ -49,6 +49,7 @@ function apresentarContatos(contatos) {
       tentativaId: contato.tentativa_id ? Number(contato.tentativa_id) : undefined,
       tentativaStatus: contato.tentativa_status || undefined,
       tentativaStatusEm: contato.tentativa_status_em || undefined,
+      resultadoIndeterminadoEm: contato.resultado_indeterminado_em || undefined,
       acaoContato: contato.acao_contato || undefined,
       acaoContatoEm: contato.acao_contato_em || undefined
     };
