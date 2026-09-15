@@ -28,7 +28,7 @@ async function baixar(requisicao, resposta, proximo) {
   try {
     backup = await backupService.prepararDownload(requisicao.params.id);
     resposta.setHeader('X-Backup-SHA256', backup.sha256);
-    resposta.setHeader('Content-Type', 'application/sql; charset=utf-8');
+    resposta.setHeader('Content-Type', 'application/octet-stream');
     resposta.setHeader('Cache-Control', 'private, no-store');
 
     return resposta.download(

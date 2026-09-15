@@ -45,6 +45,7 @@
     "testar:privacidade": "node scripts/testarPrivacidadeAdministrativa.js",
     "testar:eventos-exclusoes": "node scripts/testarEventosExclusoes.js",
     "testar:backups": "node scripts/testarBackups.js",
+    "testar:backup-completo-isolado": "node scripts/testarBackupCompletoIsolado.js",
     "testar:resiliencia": "node scripts/testarResiliencia.js",
     "testar:resiliencia-mensageria": "node scripts/testarResilienciaMensageria.js",
     "testar:e2e": "node scripts/testarJornadasE2E.js",

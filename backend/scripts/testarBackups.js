@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const childProcess = require('child_process');
 const aplicacao = require('../src/app');
 const banco = require('../src/config/banco');
 
@@ -101,33 +102,42 @@ async function executar() {
     });
     verificar(resposta.status === 200, 'Administrador não conseguiu baixar backup concluído.');
     verificar(
-      /^attachment; filename="acorda-rj-dados-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.sql"$/.test(
+      /^attachment; filename="acorda-rj-completo-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.dump"$/.test(
         resposta.headers.get('content-disposition') || ''
       ),
       'Nome do arquivo de backup não segue o padrão oficial.'
     );
     const buffer = Buffer.from(await resposta.arrayBuffer());
-    const conteudo = buffer.toString('utf8');
+    verificar(buffer.subarray(0, 5).toString() === 'PGDMP', 'Formato custom ausente.');
+    diretorio = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'teste-backup-'));
+    const arquivo = path.join(diretorio, 'teste.dump');
+    await fs.promises.writeFile(arquivo, buffer);
+    const executavelRestore = process.env.PG_RESTORE_CAMINHO || (process.platform === 'win32'
+      ? 'C:\\Program Files\\PostgreSQL\\18\\bin\\pg_restore.exe' : 'pg_restore');
+    const leitura = childProcess.spawnSync(executavelRestore, ['--file=-', arquivo], {
+      encoding: 'utf8', windowsHide: true, shell: false, timeout: 30000, maxBuffer: 16 * 1024 * 1024
+    });
+    verificar(leitura.status === 0, 'pg_restore não conseguiu ler o arquivo completo.');
+    const conteudo = leitura.stdout;
     verificar(
-      (resposta.headers.get('content-type') || '').includes('application/sql'),
-      'Resposta não foi identificada como SQL.'
+      (resposta.headers.get('content-type') || '').includes('application/octet-stream'),
+      'Resposta não foi identificada como arquivo binário.'
     );
     verificar(conteudo.includes('PostgreSQL database dump'), 'Arquivo SQL não possui cabeçalho válido do PostgreSQL.');
     verificar(conteudo.includes('COPY public.usuarios'), 'Backup não contém os dados da tabela de usuários.');
     verificar(conteudo.includes(EMAIL_ADMIN), 'Backup não preservou os registros existentes no momento da geração.');
     verificar(!/CREATE\s+DATABASE/i.test(conteudo), 'Backup incluiu criação de banco.');
-    verificar(!/CREATE\s+TABLE/i.test(conteudo), 'Backup incluiu criação de tabela.');
-    verificar(!/CREATE\s+(SCHEMA|INDEX|TRIGGER|FUNCTION)/i.test(conteudo), 'Backup incluiu estrutura do banco.');
+    verificar(/CREATE\s+TABLE/i.test(conteudo), 'Backup não incluiu criação de tabela.');
+    verificar(/CREATE\s+(SCHEMA|INDEX|TRIGGER|FUNCTION)/i.test(conteudo), 'Backup não incluiu estrutura do banco.');
+    verificar(geracao.corpo.backup.formato === 'custom', 'Formato incorreto na auditoria.');
+    verificar(Boolean(geracao.corpo.backup.versaoPostgresql), 'Versão PostgreSQL não registrada.');
+    verificar(geracao.corpo.backup.migrations.some(item => item.versao === '022'), 'Migration não registrada.');
     const sha256 = crypto.createHash('sha256').update(buffer).digest('hex').toUpperCase();
     verificar(resposta.headers.get('x-backup-sha256') === sha256, 'SHA-256 do download não confere.');
     verificar(
       (resposta.headers.get('cache-control') || '').includes('no-store'),
       'Download não desabilitou armazenamento em cache.'
     );
-
-    diretorio = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'teste-backup-'));
-    const arquivo = path.join(diretorio, 'teste.sql');
-    await fs.promises.writeFile(arquivo, buffer);
 
     const historico = await requisitarJson(baseUrl, '/api/admin/backups', {
       headers: Object.assign({ 'Content-Type': 'application/json' }, adminHeaders)

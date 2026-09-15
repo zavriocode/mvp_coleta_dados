@@ -47,7 +47,7 @@ function localizarPgDump() {
 
 function criarNomeArquivo() {
   const data = new Date().toISOString().slice(0, 19).replace('T', '_').replace(/:/g, '-');
-  return 'acorda-rj-dados-' + data + '.sql';
+  return 'acorda-rj-completo-' + data + '.dump';
 }
 
 function lerInteiro(nome, valorPadrao, minimo, maximo) {
@@ -67,19 +67,15 @@ function executarPgDump(executavel, argumentos, ambiente, limiteMs) {
       windowsHide: true,
       shell: false
     });
-    let erroRecebido = '';
     let encerradoPorTempo = false;
     const temporizador = setTimeout(function () {
       encerradoPorTempo = true;
       processo.kill();
     }, limiteMs);
 
-    processo.stderr.on('data', function (dados) {
-      erroRecebido += dados.toString();
-      if (erroRecebido.length > 4000) {
-        erroRecebido = erroRecebido.slice(-4000);
-      }
-    });
+    // Não registrar stderr: pode conter identificadores ou dados sensíveis do banco.
+    processo.stderr.resume();
+    processo.stdout.resume();
     processo.once('error', function (erro) {
       clearTimeout(temporizador);
       if (erro.code === 'ENOENT') {
@@ -89,7 +85,7 @@ function executarPgDump(executavel, argumentos, ambiente, limiteMs) {
         ));
         return;
       }
-      rejeitar(erro);
+      rejeitar(new Error('Não foi possível iniciar a ferramenta de backup.'));
     });
     processo.once('close', function (codigo) {
       clearTimeout(temporizador);
@@ -98,7 +94,7 @@ function executarPgDump(executavel, argumentos, ambiente, limiteMs) {
         return;
       }
       if (codigo !== 0) {
-        rejeitar(new Error('pg_dump terminou com erro: ' + erroRecebido.trim()));
+        rejeitar(new Error('A ferramenta de backup falhou. Verifique conexão, permissões, espaço e compatibilidade da versão PostgreSQL.'));
         return;
       }
       resolver();
@@ -130,6 +126,8 @@ function normalizarRegistro(registro) {
     status: registro.status,
     nomeArquivo: registro.nome_arquivo,
     formato: registro.formato,
+    versaoPostgresql: registro.versao_postgresql,
+    migrations: registro.migrations,
     tamanhoBytes: registro.tamanho_bytes,
     sha256: registro.sha256,
     mensagemErro: registro.mensagem_erro,
@@ -201,9 +199,10 @@ async function gerar(usuario) {
 
   let registroId;
   let diretorio;
+  let snapshotAberto = false;
 
   try {
-    registroId = await backupModel.iniciar(usuario.id, 'sql_dados');
+    registroId = await backupModel.iniciar(usuario.id, 'custom');
     const limiteTamanhoBanco = lerInteiro(
       'BACKUP_BANCO_TAMANHO_MAXIMO_BYTES',
       2147483648,
@@ -227,14 +226,17 @@ async function gerar(usuario) {
       throw new Error('BACKUP_TEMPO_LIMITE_MS possui valor inválido.');
     }
 
+    // Validar retenção antes de criar/publicar qualquer arquivo.
+    lerInteiro('BACKUP_RETENCAO_TEMPORARIA_MS', 900000, 60000, 3600000);
     diretorio = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'acorda-rj-'));
+    await fs.promises.chmod(diretorio, 0o700);
     const nomeArquivo = criarNomeArquivo();
     const caminhoArquivo = path.join(diretorio, nomeArquivo);
     const argumentos = [
-      '--format=plain',
-      '--data-only',
+      '--format=custom',
       '--blobs',
       '--no-owner',
+      '--no-acl',
       '--no-password',
       '--encoding=UTF8',
       '--host=' + configuracao.host,
@@ -257,16 +259,34 @@ async function gerar(usuario) {
       ambiente.PGSSLMODE = configuracao.ssl;
     }
 
+    await clienteBloqueio.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+    snapshotAberto = true;
+    await clienteBloqueio.query("SELECT set_config('idle_in_transaction_session_timeout', $1, true)", [String(limiteMs + 30000)]);
+    const snapshot = await clienteBloqueio.query(
+      "SELECT pg_export_snapshot() AS id, current_setting('server_version') AS versao"
+    );
+    const migrations = await clienteBloqueio.query(
+      'SELECT versao, nome_arquivo, checksum_sha256 FROM public.schema_migrations ORDER BY versao'
+    );
+    argumentos.unshift('--snapshot=' + snapshot.rows[0].id);
     await executarPgDump(localizarPgDump(), argumentos, ambiente, limiteMs);
+    await clienteBloqueio.query('COMMIT');
+    snapshotAberto = false;
     const estatisticas = await fs.promises.stat(caminhoArquivo);
-    if (estatisticas.size < 5) {
-      throw new Error('O arquivo de backup foi gerado vazio.');
+    const arquivo = await fs.promises.open(caminhoArquivo, 'r');
+    const cabecalho = Buffer.alloc(5);
+    try { await arquivo.read(cabecalho, 0, 5, 0); } finally { await arquivo.close(); }
+    if (estatisticas.size < 32 || cabecalho.toString('ascii') !== 'PGDMP') {
+      throw new Error('A ferramenta não gerou um arquivo custom PostgreSQL válido.');
     }
+    await fs.promises.chmod(caminhoArquivo, 0o600);
     const sha256 = await calcularSha256(caminhoArquivo);
     await backupModel.concluir(registroId, {
       nomeArquivo,
       tamanhoBytes: estatisticas.size,
-      sha256
+      sha256,
+      versaoPostgresql: snapshot.rows[0].versao,
+      migrations: migrations.rows
     });
     const registroConcluido = await backupModel.buscarPorId(registroId);
     disponibilizarTemporariamente(registroId, {
@@ -289,10 +309,14 @@ async function gerar(usuario) {
     await removerTemporario(diretorio);
     throw erro;
   } finally {
+    let descartarConexao = false;
     try {
+      if (snapshotAberto) await clienteBloqueio.query('ROLLBACK');
       await clienteBloqueio.query('SELECT pg_advisory_unlock(82174999)');
+    } catch (_) {
+      descartarConexao = true;
     } finally {
-      clienteBloqueio.release();
+      clienteBloqueio.release(descartarConexao);
     }
   }
 }

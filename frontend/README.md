@@ -39,7 +39,7 @@ Substitua o endereço de exemplo pelo e-mail oficial criado para o projeto.
 | `/admin/importacoes` | operador/admin | Pré-visualização e confirmação de arquivo de contatos do celular, CSV ou XLSX. |
 | `/admin/campanhas` | operador/admin | Campanhas, segmentação, prévia, lotes, métricas e capacidade; escrita administrativa protegida. |
 | `/admin/relatorios` | operador/admin | Indicadores e gráficos; CSV e Excel aparecem somente para admin. |
-| `/admin/backups` | admin | Geração, download e histórico auditado de arquivos SQL legíveis somente com os dados do PostgreSQL. |
+| `/admin/backups` | admin | Geração, download e histórico auditado de backups custom completos do PostgreSQL. |
 | `/admin/eventos` | operador/admin | Operador consulta eventos e participantes; administrador também cria, edita, ativa e encerra. |
 | `/admin/solicitacoes-exclusao` | admin | Aprovar com exclusão física ou rejeitar pedidos. |
 | `/admin/usuarios` | admin | Definir o próprio nome e senha, criar operadores/administradores e redefinir senhas de operadores. |
@@ -153,7 +153,7 @@ A própria página apresenta o histórico resumido dos lotes, com origem, arquiv
 
 Ao gerar um backup, o frontend baixa o arquivo retornado pelo backend e exibe o hash SHA-256. O histórico informa responsável, data, estado, tamanho e hash, sem expor credenciais do banco.
 
-Os arquivos possuem nomes distintos: o backup dos dados usa `acorda-rj-dados-AAAA-MM-DD_HH-mm-ss.sql`; as planilhas usam `acorda-rj-contatos-AAAA-MM-DD_HH-mm-ss.xlsx` ou `.csv`.
+Os arquivos possuem nomes distintos: o backup completo usa `acorda-rj-completo-AAAA-MM-DD_HH-mm-ss.dump`; as planilhas usam `acorda-rj-contatos-AAAA-MM-DD_HH-mm-ss.xlsx` ou `.csv`. O histórico distingue o formato completo dos backups SQL legados somente de dados. A restauração exige suporte técnico; não há upload/restore administrativo nesta fase.
 
 Sessões expiradas removem o token local e redirecionam ao login. O frontend esconde ações sem permissão, mas a autorização definitiva é sempre conferida pelo backend.
 

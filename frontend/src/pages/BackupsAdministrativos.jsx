@@ -135,9 +135,9 @@ function BackupsAdministrativos() {
           <div className="cabecalho-secao">
             <div>
               <span className="etiqueta-pagina">Proteção dos dados</span>
-              <h2>Backup dos dados</h2>
+              <h2>Backup completo</h2>
             </div>
-            <p>Gera um arquivo SQL legível com contatos, usuários, eventos, campanhas, importações e históricos, sem criar banco ou tabelas.</p>
+            <p>Gera uma cópia da estrutura e dos registros do sistema, incluindo contatos, usuários, campanhas e históricos. Guarde o arquivo em local seguro. A recuperação exige suporte técnico; não está disponível neste painel.</p>
           </div>
           <button className="botao botao-primario" type="button" disabled={gerando} onClick={gerarNovoBackup}>
             {gerando ? 'Processando backup...' : 'Gerar novo backup'}
@@ -159,7 +159,7 @@ function BackupsAdministrativos() {
                   {backups.map(function (backup) {
                     return (
                       <tr key={backup.id}>
-                        <td>{backup.nomeArquivo || 'Não gerado'}</td>
+                        <td>{backup.nomeArquivo || 'Não gerado'}<br /><small>{backup.formato === 'custom' ? 'Completo' : 'Legado — somente dados'}{backup.versaoPostgresql ? ' · PostgreSQL ' + backup.versaoPostgresql : ''}</small></td>
                         <td>{ROTULOS_STATUS[backup.status] || backup.status}</td>
                         <td>{formatarTamanho(backup.tamanhoBytes)}</td>
                         <td>{backup.usuario || 'Usuário removido'}</td>

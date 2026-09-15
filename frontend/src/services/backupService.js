@@ -47,7 +47,7 @@ async function baixarBackup(id) {
     sha256: resposta.headers.get('X-Backup-SHA256') || '',
     nomeArquivo: obterNomeArquivo(
       resposta,
-      'acorda-rj-dados.sql'
+      'acorda-rj-completo.dump'
     )
   };
 }

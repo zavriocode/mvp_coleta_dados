@@ -719,6 +719,8 @@ CREATE TABLE public.backups_banco (
   status VARCHAR(20) NOT NULL DEFAULT 'processando',
   nome_arquivo VARCHAR(255),
   formato VARCHAR(20) NOT NULL DEFAULT 'sql_dados',
+  versao_postgresql TEXT,
+  migrations JSONB,
   tamanho_bytes BIGINT,
   sha256 CHAR(64),
   mensagem_erro VARCHAR(1000),
@@ -1378,6 +1380,7 @@ INSERT INTO public.schema_migrations (
   ('018', '018_garantir_telefone_canonico_unico.sql', '782bf9795daa02bbdd7e30a9efaabd7888977447efed1a4cc99327ba3af5cff2'),
   ('019', '019_remover_limite_etario_cadastros.sql', 'fa99c9555c259385314b9d38fe35ac2426ae3782b593cf0228b27598b42348b9'),
   ('020', '020_excluir_modelos_sem_apagar_historico.sql', '456f3bae47329d573d9b7b0c9858578f23863f71f11106fdeebc99955ae3b70b'),
-  ('021', '021_resiliencia_envio_webhook.sql', '89c194e0f41429fc904f55bac66c259155346d1e5dc470c6d3d2f5e25b849069');
+  ('021', '021_resiliencia_envio_webhook.sql', '89c194e0f41429fc904f55bac66c259155346d1e5dc470c6d3d2f5e25b849069'),
+  ('022', '022_metadados_backup_completo.sql', '6a41e1edf30183d8d7605d737e30b68e2ce1efb4e1af70bef0b19f5cdbef0ba8');
 
 COMMIT;
