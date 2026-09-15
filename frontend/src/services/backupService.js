@@ -16,19 +16,26 @@ async function listarBackups(sinal) {
 }
 
 async function gerarBackup() {
-  const urlBase = obterUrlBase();
-  const resposta = await fetch(urlBase + '/api/admin/backups/banco', {
+  return requisitar('/api/admin/backups/banco', {
     method: 'POST',
+    autenticado: true
+  });
+}
+
+async function baixarBackup(id) {
+  const urlBase = obterUrlBase();
+  const resposta = await fetch(urlBase + '/api/admin/backups/' + encodeURIComponent(id) + '/download', {
+    method: 'GET',
     headers: { Authorization: 'Bearer ' + obterToken() }
   });
 
   if (!resposta.ok) {
-    let mensagem = 'Não foi possível gerar o backup.';
+    let mensagem = 'Não foi possível baixar o backup.';
     try {
       const corpo = await resposta.json();
       mensagem = corpo.mensagem || mensagem;
     } catch (erro) {
-      mensagem = 'Não foi possível gerar o backup.';
+      mensagem = 'Não foi possível baixar o backup.';
     }
     const erro = new Error(mensagem);
     erro.statusHttp = resposta.status;
@@ -45,4 +52,4 @@ async function gerarBackup() {
   };
 }
 
-export { gerarBackup, listarBackups };
+export { baixarBackup, gerarBackup, listarBackups };

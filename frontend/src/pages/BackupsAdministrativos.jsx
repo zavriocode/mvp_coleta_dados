@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import CabecalhoAdministrativo from '../components/CabecalhoAdministrativo';
 import Carregando from '../components/Carregando';
 import MensagemRetorno from '../components/MensagemRetorno';
-import { gerarBackup, listarBackups } from '../services/backupService';
+import { baixarBackup, gerarBackup, listarBackups } from '../services/backupService';
 import { removerToken } from '../utils/armazenamentoToken';
 
 function formatarData(valor) {
@@ -27,11 +27,19 @@ function formatarTamanho(valor) {
   }) + ' MB';
 }
 
+const ROTULOS_STATUS = {
+  aguardando: 'Aguardando',
+  processando: 'Processando',
+  concluido: 'Concluído',
+  falhou: 'Erro'
+};
+
 function BackupsAdministrativos() {
   const navegacao = useNavigate();
   const [backups, setBackups] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [gerando, setGerando] = useState(false);
+  const [baixandoId, setBaixandoId] = useState(null);
   const [mensagem, setMensagem] = useState('');
   const [tipoMensagem, setTipoMensagem] = useState('informacao');
 
@@ -57,8 +65,8 @@ function BackupsAdministrativos() {
     carregar();
   }, []);
 
-  async function baixarBackup() {
-    if (!window.confirm('Gerar e baixar agora um backup dos dados do sistema?')) {
+  async function gerarNovoBackup() {
+    if (!window.confirm('Gerar agora um novo backup dos dados do sistema?')) {
       return;
     }
 
@@ -66,17 +74,8 @@ function BackupsAdministrativos() {
     setMensagem('');
     try {
       const resultado = await gerarBackup();
-      const url = URL.createObjectURL(resultado.arquivo);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = resultado.nomeArquivo;
-      link.click();
-      URL.revokeObjectURL(url);
       setTipoMensagem('sucesso');
-      setMensagem(
-        'Backup baixado com sucesso.' +
-        (resultado.sha256 ? ' SHA-256: ' + resultado.sha256 : '')
-      );
+      setMensagem(resultado.mensagem || 'Backup gerado com sucesso. Clique em Baixar para salvar o arquivo.');
       await carregar();
     } catch (erro) {
       if (erro.statusHttp === 401) {
@@ -88,6 +87,33 @@ function BackupsAdministrativos() {
       }
     } finally {
       setGerando(false);
+    }
+  }
+
+  async function baixar(id) {
+    setBaixandoId(id);
+    setMensagem('');
+    try {
+      const resultado = await baixarBackup(id);
+      const url = URL.createObjectURL(resultado.arquivo);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = resultado.nomeArquivo;
+      link.click();
+      URL.revokeObjectURL(url);
+      setTipoMensagem('sucesso');
+      setMensagem('Backup baixado com sucesso e removido do armazenamento temporário do sistema.');
+      await carregar();
+    } catch (erro) {
+      if (erro.statusHttp === 401) {
+        removerToken();
+        navegacao('/login', { replace: true });
+      } else {
+        setTipoMensagem('erro');
+        setMensagem(erro.message);
+      }
+    } finally {
+      setBaixandoId(null);
     }
   }
 
@@ -111,11 +137,12 @@ function BackupsAdministrativos() {
               <span className="etiqueta-pagina">Proteção dos dados</span>
               <h2>Backup dos dados</h2>
             </div>
-            <p>Baixa um arquivo SQL legível com contatos, usuários, eventos, campanhas, importações e históricos, sem criar banco ou tabelas.</p>
+            <p>Gera um arquivo SQL legível com contatos, usuários, eventos, campanhas, importações e históricos, sem criar banco ou tabelas.</p>
           </div>
-          <button className="botao botao-primario" type="button" disabled={gerando} onClick={baixarBackup}>
-            {gerando ? 'Gerando backup dos dados...' : 'Gerar e baixar dados'}
+          <button className="botao botao-primario" type="button" disabled={gerando} onClick={gerarNovoBackup}>
+            {gerando ? 'Processando backup...' : 'Gerar novo backup'}
           </button>
+          <p className="texto-auxiliar-backup">Após a geração, use o botão Baixar no histórico. O arquivo fica disponível temporariamente e é removido depois do download.</p>
         </section>
 
         <MensagemRetorno mensagem={mensagem} tipo={tipoMensagem} />
@@ -127,17 +154,33 @@ function BackupsAdministrativos() {
           {!carregando && backups.length > 0 && (
             <div className="tabela-responsiva">
               <table className="tabela-contatos">
-                <thead><tr><th>Arquivo</th><th>Status</th><th>Tamanho</th><th>Administrador</th><th>Data</th><th>SHA-256</th></tr></thead>
+                <thead><tr><th>Arquivo</th><th>Status</th><th>Tamanho</th><th>Responsável</th><th>Data</th><th>SHA-256</th><th>Ações</th></tr></thead>
                 <tbody>
                   {backups.map(function (backup) {
                     return (
                       <tr key={backup.id}>
                         <td>{backup.nomeArquivo || 'Não gerado'}</td>
-                        <td>{backup.status}</td>
+                        <td>{ROTULOS_STATUS[backup.status] || backup.status}</td>
                         <td>{formatarTamanho(backup.tamanhoBytes)}</td>
                         <td>{backup.usuario || 'Usuário removido'}</td>
                         <td>{formatarData(backup.concluidoEm || backup.criadoEm)}</td>
                         <td className="texto-hash-backup" title={backup.sha256 || backup.mensagemErro || ''}>{backup.sha256 || backup.mensagemErro || '—'}</td>
+                        <td>
+                          {backup.disponivelParaDownload ? (
+                            <button
+                              className="botao botao-secundario botao-backup-download"
+                              type="button"
+                              disabled={baixandoId === backup.id}
+                              onClick={function () { baixar(backup.id); }}
+                            >
+                              {baixandoId === backup.id ? 'Baixando...' : 'Baixar'}
+                            </button>
+                          ) : (
+                            <span className="texto-backup-indisponivel">
+                              {backup.status === 'concluido' ? 'Arquivo removido' : '—'}
+                            </span>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}

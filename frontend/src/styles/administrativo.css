@@ -2909,6 +2909,24 @@
   font-size: 0.72rem;
 }
 
+.texto-auxiliar-backup {
+  margin: 0.75rem 0 0;
+  color: #687078;
+  font-size: 0.86rem;
+}
+
+.botao-backup-download {
+  min-height: 2.25rem;
+  padding: 0.45rem 0.75rem;
+  white-space: nowrap;
+}
+
+.texto-backup-indisponivel {
+  color: #777f88;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
 .separador-usuarios {
   border: 0;
   border-top: 1px solid var(--cor-borda, #e5e7eb);
