@@ -14,6 +14,19 @@ async function listar(requisicao, resposta, proximo) {
 async function gerar(requisicao, resposta, proximo) {
   try {
     const backup = await backupService.gerar(requisicao.usuario);
+    return resposta.status(201).json({
+      mensagem: 'Backup gerado com sucesso. O arquivo está disponível temporariamente para download.',
+      backup
+    });
+  } catch (erro) {
+    return proximo(erro);
+  }
+}
+
+async function baixar(requisicao, resposta, proximo) {
+  let backup;
+  try {
+    backup = await backupService.prepararDownload(requisicao.params.id);
     resposta.setHeader('X-Backup-SHA256', backup.sha256);
     resposta.setHeader('Content-Type', 'application/sql; charset=utf-8');
     resposta.setHeader('Cache-Control', 'private, no-store');
@@ -38,4 +51,4 @@ async function gerar(requisicao, resposta, proximo) {
   }
 }
 
-module.exports = { gerar, listar };
+module.exports = { baixar, gerar, listar };

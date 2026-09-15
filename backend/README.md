@@ -48,6 +48,7 @@ BACKUP_TEMPO_LIMITE_MS=600000
 BACKUP_CONEXAO_TEMPO_LIMITE_SEGUNDOS=10
 BACKUP_MAX_FILA_BANCO=2
 BACKUP_BANCO_TAMANHO_MAXIMO_BYTES=2147483648
+BACKUP_RETENCAO_TEMPORARIA_MS=900000
 RELATORIO_LIMITE_REGISTROS=50000
 WHATSAPP_WEBHOOK_VERIFY_TOKEN=
 META_APP_SECRET=
@@ -182,7 +183,7 @@ As colunas anteriores de compatibilidade em `contatos` foram mantidas apenas qua
 - O resumo de relatórios também devolve `problemasPorBairro`, com total e
   distribuição das categorias para cada bairro.
 - A quantidade máxima de registros carregados por uma exportação é configurada em `RELATORIO_LIMITE_REGISTROS`, evitando consumo de memória sem limite.
-- O backup pelo painel exige perfil `administrador`, inclui todos os dados existentes no momento da geração sem copiar a estrutura do banco, impede execuções simultâneas, usa `pg_dump --format=plain --data-only` sem shell, gera SHA-256 e registra sucesso ou falha em `backups_banco`.
+- O backup pelo painel exige perfil `administrador`, inclui todos os dados existentes no momento da geração sem copiar a estrutura do banco, impede execuções simultâneas, usa `pg_dump --format=plain --data-only` sem shell, gera SHA-256 e registra sucesso ou falha em `backups_banco`. O download também exige autenticação administrativa, é de uso único e o arquivo privado é removido após o download ou ao expirar a retenção temporária.
 - Campanhas preservam o snapshot dos filtros e bloqueiam mudança de segmentação
   depois da primeira reserva.
 - `UNIQUE (campanha_id, contato_id)` impede duplicidade na mesma campanha e
@@ -303,13 +304,13 @@ Sincronizar contadores após uma limpeza controlada:
 npm run banco:sincronizar-sequencias
 ```
 
-No painel, um administrador também pode gerar e baixar um backup em `/admin/backups`. O servidor precisa ter `pg_dump` compatível com a versão do PostgreSQL. Configure `PG_DUMP_CAMINHO` quando o executável não estiver no `PATH`.
+No painel, um administrador pode gerar um backup em `/admin/backups` e baixá-lo pelo botão exibido no histórico. O servidor precisa ter `pg_dump` compatível com a versão do PostgreSQL. Configure `PG_DUMP_CAMINHO` quando o executável não estiver no `PATH`.
 
 Na DigitalOcean App Platform, o arquivo `Aptfile` instala o cliente oficial do PostgreSQL 18 durante a compilação. O script `heroku-postbuild` valida a presença do `pg_dump` e interrompe a implantação caso o executável não esteja disponível, evitando publicar o recurso de backup sem sua dependência de sistema.
 
 O backup de dados usa o nome `acorda-rj-dados-AAAA-MM-DD_HH-mm-ss.sql`. É um arquivo de texto legível que inclui contatos, usuários, eventos, campanhas, importações, históricos e valores das sequências, sem comandos `CREATE DATABASE`, `CREATE TABLE` ou criação de índices. Deve ser restaurado em um banco vazio que já possua uma estrutura compatível e não deve ser confundido com as exportações de contatos, baixadas como `acorda-rj-contatos-AAAA-MM-DD_HH-mm-ss.xlsx` ou `.csv`.
 
-Para não afetar o formulário durante picos, o painel recusa iniciar backup quando a fila do banco já está acima do limite configurado. Também há limite preventivo de tamanho para o arquivo temporário. Em produção, o mecanismo principal deve ser o backup/PITR do PostgreSQL gerenciado; o backup do painel deve ser executado em horário de menor movimento, baixado e armazenado fora da App Platform.
+Para não afetar o formulário durante picos, o painel recusa iniciar backup quando a fila do banco já está acima do limite configurado. Também há limite preventivo de tamanho para o arquivo temporário. Por padrão, o arquivo fica disponível por até 15 minutos (`BACKUP_RETENCAO_TEMPORARIA_MS`) e é removido no primeiro download. Em produção, o mecanismo principal deve ser o backup/PITR do PostgreSQL gerenciado; o backup do painel deve ser executado em horário de menor movimento, baixado e armazenado fora da App Platform.
 
 ## Testes
 

@@ -7,6 +7,8 @@ const backupModel = require('./backupModel');
 const banco = require('../../config/banco');
 const criarAppError = require('../../utils/AppError');
 
+const arquivosTemporarios = new Map();
+
 function lerConfiguracaoBanco() {
   if (process.env.DATABASE_URL) {
     const endereco = new URL(process.env.DATABASE_URL);
@@ -120,6 +122,51 @@ async function removerTemporario(diretorio) {
   }
 }
 
+function normalizarRegistro(registro) {
+  const temporario = arquivosTemporarios.get(String(registro.id));
+  const disponivel = Boolean(temporario && temporario.expiraEm.getTime() > Date.now());
+  return {
+    id: registro.id,
+    status: registro.status,
+    nomeArquivo: registro.nome_arquivo,
+    formato: registro.formato,
+    tamanhoBytes: registro.tamanho_bytes,
+    sha256: registro.sha256,
+    mensagemErro: registro.mensagem_erro,
+    usuario: registro.usuario_nome,
+    criadoEm: registro.criado_em,
+    concluidoEm: registro.concluido_em,
+    disponivelParaDownload: disponivel,
+    expiraEm: disponivel ? temporario.expiraEm : null
+  };
+}
+
+async function removerArquivoDisponivel(id, temporarioEsperado) {
+  const chave = String(id);
+  const temporario = arquivosTemporarios.get(chave);
+  if (!temporario || (temporarioEsperado && temporario !== temporarioEsperado)) {
+    return;
+  }
+
+  arquivosTemporarios.delete(chave);
+  clearTimeout(temporario.temporizador);
+  await removerTemporario(temporario.diretorio);
+}
+
+function disponibilizarTemporariamente(id, dados) {
+  const retencaoMs = lerInteiro('BACKUP_RETENCAO_TEMPORARIA_MS', 900000, 60000, 3600000);
+  const expiraEm = new Date(Date.now() + retencaoMs);
+  const temporario = Object.assign({}, dados, { expiraEm });
+
+  temporario.temporizador = setTimeout(function () {
+    removerArquivoDisponivel(id, temporario).catch(function (erro) {
+      console.error('Não foi possível remover um backup temporário expirado:', resumirErro(erro));
+    });
+  }, retencaoMs);
+  temporario.temporizador.unref();
+  arquivosTemporarios.set(String(id), temporario);
+}
+
 function resumirErro(erro) {
   const mensagem = erro && erro.message ? erro.message : 'Falha desconhecida.';
   return mensagem.replace(/postgresql:\/\/[^\s]+/gi, '[endereco protegido]').slice(0, 1000);
@@ -221,8 +268,16 @@ async function gerar(usuario) {
       tamanhoBytes: estatisticas.size,
       sha256
     });
+    const registroConcluido = await backupModel.buscarPorId(registroId);
+    disponibilizarTemporariamente(registroId, {
+      caminhoArquivo,
+      diretorio,
+      nomeArquivo,
+      sha256
+    });
+    diretorio = null;
 
-    return { caminhoArquivo, diretorio, nomeArquivo, sha256 };
+    return normalizarRegistro(registroConcluido);
   } catch (erro) {
     if (registroId) {
       try {
@@ -244,20 +299,36 @@ async function gerar(usuario) {
 
 async function listar() {
   const registros = await backupModel.listar();
-  return registros.map(function (registro) {
-    return {
-      id: registro.id,
-      status: registro.status,
-      nomeArquivo: registro.nome_arquivo,
-      formato: registro.formato,
-      tamanhoBytes: registro.tamanho_bytes,
-      sha256: registro.sha256,
-      mensagemErro: registro.mensagem_erro,
-      usuario: registro.usuario_nome,
-      criadoEm: registro.criado_em,
-      concluidoEm: registro.concluido_em
-    };
-  });
+  return registros.map(normalizarRegistro);
 }
 
-module.exports = { gerar, listar, removerTemporario };
+async function prepararDownload(id) {
+  if (!/^\d+$/.test(String(id)) || Number(id) < 1) {
+    throw criarAppError('Backup inválido.', 400);
+  }
+
+  const registro = await backupModel.buscarPorId(id);
+  if (!registro) {
+    throw criarAppError('Backup não encontrado.', 404);
+  }
+  if (registro.status !== 'concluido') {
+    throw criarAppError('Este backup ainda não está disponível para download.', 409);
+  }
+
+  const temporario = arquivosTemporarios.get(String(id));
+  if (!temporario || temporario.expiraEm.getTime() <= Date.now()) {
+    if (temporario) {
+      await removerArquivoDisponivel(id, temporario);
+    }
+    throw criarAppError(
+      'O arquivo temporário não está mais disponível. Gere um novo backup.',
+      410
+    );
+  }
+
+  arquivosTemporarios.delete(String(id));
+  clearTimeout(temporario.temporizador);
+  return temporario;
+}
+
+module.exports = { gerar, listar, prepararDownload, removerTemporario };

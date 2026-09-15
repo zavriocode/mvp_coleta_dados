@@ -56,4 +56,25 @@ async function listar() {
   return resultado.rows;
 }
 
-module.exports = { concluir, falhar, iniciar, listar };
+async function buscarPorId(id) {
+  const resultado = await banco.query(
+    `SELECT
+      backup.id,
+      backup.status,
+      backup.nome_arquivo,
+      backup.formato,
+      backup.tamanho_bytes,
+      backup.sha256,
+      backup.mensagem_erro,
+      backup.criado_em,
+      backup.concluido_em,
+      usuario.nome AS usuario_nome
+     FROM backups_banco AS backup
+     LEFT JOIN usuarios AS usuario ON usuario.id = backup.usuario_id
+     WHERE backup.id = $1`,
+    [id]
+  );
+  return resultado.rows[0] || null;
+}
+
+module.exports = { buscarPorId, concluir, falhar, iniciar, listar };

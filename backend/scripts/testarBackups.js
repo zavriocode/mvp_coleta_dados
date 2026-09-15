@@ -74,11 +74,32 @@ async function executar() {
     verificar((await fetch(baseUrl + '/api/admin/backups', { headers: operadorHeaders })).status === 403, 'Operador acessou histórico de backup.');
     verificar((await fetch(baseUrl + '/api/admin/backups/banco', { method: 'POST', headers: operadorHeaders })).status === 403, 'Operador gerou backup.');
 
-    const resposta = await fetch(baseUrl + '/api/admin/backups/banco', {
+    const geracao = await requisitarJson(baseUrl, '/api/admin/backups/banco', {
       method: 'POST',
       headers: adminHeaders
     });
-    verificar(resposta.status === 200, 'Administrador não conseguiu gerar backup.');
+    verificar(geracao.status === 201, 'Administrador não conseguiu gerar backup.');
+    verificar(geracao.corpo.backup.status === 'concluido', 'Geração não retornou backup concluído.');
+    verificar(geracao.corpo.backup.disponivelParaDownload === true, 'Arquivo não ficou disponível para download.');
+    verificar(Boolean(geracao.corpo.backup.nomeArquivo), 'Nome do arquivo não foi auditado.');
+    verificar(Number(geracao.corpo.backup.tamanhoBytes) > 0, 'Tamanho do arquivo não foi auditado.');
+    verificar(geracao.corpo.backup.usuario === 'Admin Backup', 'Responsável pelo backup não foi auditado.');
+    verificar(Boolean(geracao.corpo.backup.concluidoEm), 'Data de conclusão não foi auditada.');
+
+    const backupId = geracao.corpo.backup.id;
+    verificar(
+      (await fetch(baseUrl + '/api/admin/backups/' + backupId + '/download')).status === 401,
+      'Download sem token não retornou 401.'
+    );
+    verificar(
+      (await fetch(baseUrl + '/api/admin/backups/' + backupId + '/download', { headers: operadorHeaders })).status === 403,
+      'Operador baixou backup.'
+    );
+
+    const resposta = await fetch(baseUrl + '/api/admin/backups/' + backupId + '/download', {
+      headers: adminHeaders
+    });
+    verificar(resposta.status === 200, 'Administrador não conseguiu baixar backup concluído.');
     verificar(
       /^attachment; filename="acorda-rj-dados-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.sql"$/.test(
         resposta.headers.get('content-disposition') || ''
@@ -99,6 +120,10 @@ async function executar() {
     verificar(!/CREATE\s+(SCHEMA|INDEX|TRIGGER|FUNCTION)/i.test(conteudo), 'Backup incluiu estrutura do banco.');
     const sha256 = crypto.createHash('sha256').update(buffer).digest('hex').toUpperCase();
     verificar(resposta.headers.get('x-backup-sha256') === sha256, 'SHA-256 do download não confere.');
+    verificar(
+      (resposta.headers.get('cache-control') || '').includes('no-store'),
+      'Download não desabilitou armazenamento em cache.'
+    );
 
     diretorio = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'teste-backup-'));
     const arquivo = path.join(diretorio, 'teste.sql');
@@ -114,6 +139,15 @@ async function executar() {
     verificar(Boolean(backupExecutado), 'Histórico não contém a operação executada.');
     verificar(backupExecutado.status === 'concluido', 'Backup não foi marcado como concluído.');
     verificar(backupExecutado.sha256 === sha256, 'Histórico não preservou o SHA-256.');
+    verificar(backupExecutado.disponivelParaDownload === false, 'Arquivo temporário continuou disponível após o download.');
+    verificar(
+      (await fetch(baseUrl + '/api/admin/backups/' + backupId + '/download', { headers: adminHeaders })).status === 410,
+      'Download repetido não foi bloqueado após a remoção temporária.'
+    );
+    verificar(
+      (await fetch(baseUrl + '/api/admin/backups/invalido/download', { headers: adminHeaders })).status === 400,
+      'Identificador de backup inválido não retornou 400.'
+    );
 
     const caminhoOriginal = process.env.PG_DUMP_CAMINHO;
     process.env.PG_DUMP_CAMINHO = path.join(diretorio, 'pg_dump_inexistente');
