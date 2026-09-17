@@ -1,5 +1,9 @@
 # Backup completo e restauração — diagnóstico inicial
 
+> **Documento histórico anterior à implementação.** O diagnóstico de backup
+> SQL `data-only` não descreve o sistema atual. O estado final está em
+> [../STATUS_FINAL_DO_PROJETO.md](../STATUS_FINAL_DO_PROJETO.md).
+
 ## Estado desta análise
 
 Inspeção do código; nenhuma implementação, migration, backup ou restauração executada nesta etapa.

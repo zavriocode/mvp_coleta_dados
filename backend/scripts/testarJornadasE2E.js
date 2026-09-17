@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const bcrypt = require('bcrypt');
 const pg = require('pg');
+const crypto = require('crypto');
 
 const NOME_BANCO = 'acorda_rj_e2e_' + process.pid;
 const SCRIPTS = [
@@ -26,37 +27,31 @@ const SCRIPTS = [
   ['Falhas controladas', 'testarResiliencia.js']
 ];
 
-function criarConfiguracao(nomeBanco) {
-  if (process.env.DATABASE_URL) {
-    const endereco = new URL(process.env.DATABASE_URL);
-    endereco.pathname = '/' + nomeBanco;
-    return { connectionString: endereco.toString() };
+function garantirPostgresLocal() {
+  const host = String(process.env.BANCO_HOST || '').toLowerCase();
+  if (!['localhost', '127.0.0.1', '::1'].includes(host)) {
+    throw new Error('O teste E2E isolado exige BANCO_HOST local e nunca utiliza DATABASE_URL.');
   }
+}
 
+function criarConfiguracao(nomeBanco) {
   return {
     host: process.env.BANCO_HOST,
     port: Number(process.env.BANCO_PORTA) || 5432,
     user: process.env.BANCO_USUARIO,
     password: process.env.BANCO_SENHA,
     database: nomeBanco,
-    ssl: process.env.BANCO_SSL === 'true'
+    ssl: false
   };
 }
 
 function criarUrlBanco(nomeBanco) {
-  if (process.env.DATABASE_URL) {
-    const endereco = new URL(process.env.DATABASE_URL);
-    endereco.pathname = '/' + nomeBanco;
-    return endereco.toString();
-  }
-
   const usuario = encodeURIComponent(process.env.BANCO_USUARIO || '');
   const senha = encodeURIComponent(process.env.BANCO_SENHA || '');
   const host = process.env.BANCO_HOST || '127.0.0.1';
   const porta = process.env.BANCO_PORTA || '5432';
-  const ssl = process.env.BANCO_SSL === 'true' ? '?sslmode=require' : '';
   return 'postgresql://' + usuario + ':' + senha + '@' + host + ':' + porta +
-    '/' + nomeBanco + ssl;
+    '/' + nomeBanco;
 }
 
 async function removerBanco(administracao) {
@@ -133,7 +128,7 @@ async function validarEstadoFinal(bancoTeste) {
         WHERE nome ILIKE '%teste%' OR nome ILIKE '%mutirao%') AS eventos_qa
   `)).rows[0];
 
-  if (estado.tabelas !== 31 || estado.bairros !== 166 || estado.migrations !== 17) {
+  if (estado.tabelas !== 31 || estado.bairros !== 166 || estado.migrations !== 23) {
     throw new Error('Estrutura do banco isolado divergiu durante as jornadas.');
   }
   if (
@@ -147,6 +142,7 @@ async function validarEstadoFinal(bancoTeste) {
 }
 
 async function executar() {
+  garantirPostgresLocal();
   const administracao = new pg.Client(criarConfiguracao('postgres'));
   let bancoTeste;
   let administracaoConectada = false;
@@ -165,6 +161,10 @@ async function executar() {
     const ambiente = Object.assign({}, process.env, {
       DATABASE_URL: criarUrlBanco(NOME_BANCO),
       NODE_ENV: 'test',
+      BANCO_SSL: 'false',
+      JWT_SECRET: crypto.randomBytes(40).toString('hex'),
+      JWT_TEMPO_EXPIRACAO: '1h',
+      BACKUP_ASSINATURA_CHAVE: crypto.randomBytes(32).toString('hex'),
       META_GRAPH_API_VERSION: 'v99.0',
       META_APP_ID: '1122334455',
       WHATSAPP_ACCESS_TOKEN: 'token-qa-falso',

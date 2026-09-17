@@ -39,6 +39,18 @@ function validarAmbiente() {
   validarUrlHttps('FRONTEND_URL', frontendUrl);
   exigirTexto('JWT_TEMPO_EXPIRACAO');
 
+  [
+    'BACKUP_ASSINATURA_CHAVE',
+    'WHATSAPP_WEBHOOK_VERIFY_TOKEN',
+    'META_APP_SECRET',
+    'META_APP_ID',
+    'WHATSAPP_ACCESS_TOKEN',
+    'WHATSAPP_PHONE_NUMBER_ID',
+    'WHATSAPP_BUSINESS_ACCOUNT_ID',
+    'META_GRAPH_API_VERSION',
+    'WHATSAPP_OPTOUT_BUTTON_ID'
+  ].forEach(exigirTexto);
+
   if (process.env.DATABASE_URL) {
     const enderecoBanco = validarUrlHttpsBanco(process.env.DATABASE_URL);
     const modoSsl = enderecoBanco.searchParams.get('sslmode');

@@ -1,62 +1,50 @@
 # ACORDA RJ
 
-Sistema de coleta e gestão de contatos comunitários, com formulário público,
-painel administrativo, eventos, importações, privacidade, campanhas em lotes e
-integração oficial com a WhatsApp Cloud API.
+Sistema concluído de coleta e gestão de contatos comunitários, eventos,
+consentimentos, importações, relatórios, campanhas e mensageria oficial pela
+WhatsApp Cloud API.
 
 ## Estado atual
 
-- Backend: Node.js 24, Express 5, CommonJS, PostgreSQL e SQL parametrizado.
+**SISTEMA APROVADO PARA OPERAÇÃO CONTROLADA.**
+
+- Entrega consolidada em 17/09/2026; escopo funcional congelado.
+- Backend: Node.js 24, Express 5, CommonJS e PostgreSQL 18.
 - Frontend: React 19, React Router 7 e Vite 8.
-- Banco: schema final com 31 tabelas, 166 bairros e 15 migrations registradas.
-- Produção planejada: frontend na Vercel, API e PostgreSQL gerenciado na
-  DigitalOcean.
+- Banco: 31 tabelas operacionais, 166 bairros e migrations 001 a 023.
+- Produção: frontend na Vercel; API e PostgreSQL gerenciado na DigitalOcean.
+- Backup: arquivo único `.acorda`, dump custom completo e manifesto assinado.
+- Restore: administrativo, isolado, com manutenção, pré-backup, validação,
+  reconciliação e liberação manual.
 
-## Funcionalidades
+O documento canônico da entrega, arquitetura, variáveis, checklists e ressalvas é
+[STATUS_FINAL_DO_PROJETO.md](STATUS_FINAL_DO_PROJETO.md).
 
-- formulário responsivo em `/participar`, com idade mínima de 16 anos;
-- bairros vindos do PostgreSQL e categorias vindas do backend;
-- aceite de privacidade obrigatório e autorizações opcionais, versionadas e
-  desmarcadas por padrão;
-- cadastro único por telefone normalizado, sem duplicar números formatados de
-  maneiras diferentes;
-- links exclusivos de eventos em `/participar?evento=<id>`, com QR Code;
-- vários eventos ativos simultaneamente e vínculo único contato/evento;
-- painel com contatos, filtros, paginação, histórico e cadastro interno;
-- importação de VCF, CSV e XLSX, com até 20.000 registros por arquivo;
-- relatórios e exportações CSV/XLSX para administradores;
-- pedidos de exclusão, revogações e trilha de auditoria;
-- backup de dados em SQL, sem estrutura, exclusivo para administradores;
-- usuários com perfis `administrador` e `operador`;
-- campanhas com templates oficiais sincronizados com a Meta, rascunhos, submissão para análise, filtros, prévia, lotes idempotentes, tentativas e
-  histórico técnico;
-- envio por template aprovado através da WhatsApp Cloud API oficial;
-- webhook autenticado por HMAC, idempotente e sem armazenamento do payload
-  bruto;
-- capacidade móvel de 24 horas calculada pelo menor valor entre a proteção
-  interna e o limite oficial finito informado pela Meta;
-- sincronização automática do limite oficial pelo webhook
-  `business_capability_update` e sincronização manual de contingência.
+## Funcionalidades principais
 
-## Permissões principais
+- formulário público e eventos com QR Code;
+- contatos únicos por telefone canônico, filtros, histórico e cadastro interno;
+- consentimentos, aceite de privacidade, revogações, bloqueios e exclusões;
+- importação VCF/CSV/XLSX e relatórios/exportações CSV/XLSX;
+- usuários `operador` e `administrador`, com autorização no backend;
+- campanhas, lotes idempotentes, tentativas e estados de mensageria;
+- templates oficiais, capacidade Meta, HMAC, webhook idempotente e opt-out;
+- proteção contra duplicidade e contra reenvio automático de resultado
+  indeterminado;
+- recovery seguro após restart;
+- backup e restauração administrativa completa.
 
-| Ação | Operador | Administrador |
-|---|---:|---:|
-| Consultar e cadastrar contatos | Sim | Sim |
-| Revogar consentimentos e solicitar exclusão | Sim | Sim |
-| Consultar eventos e participantes | Sim | Sim |
-| Gerenciar eventos | Não | Sim |
-| Importar contatos | Sim | Sim |
-| Excluir uma importação e seus contatos próprios | Não | Sim |
-| Exportar CSV/XLSX | Não | Sim |
-| Gerar backup | Não | Sim |
-| Gerenciar usuários | Não | Sim |
-| Criar/editar campanha e template | Não | Sim |
-| Consultar campanhas e criar lotes | Sim | Sim |
-| Alterar proteção interna ou sincronizar a Meta | Não | Sim |
+## Regras operacionais essenciais
 
-O backend é a autoridade das permissões. Ocultar controles no frontend é apenas
-uma proteção visual complementar.
+- PostgreSQL é a fonte de verdade operacional; a Meta é a fonte dos estados
+  oficiais externos.
+- O frontend nunca autoriza uma operação crítica.
+- Tentativas indeterminadas nunca são reenviadas automaticamente.
+- Opt-out impede novos envios.
+- Dados históricos não expiram automaticamente; somente artefatos técnicos
+  temporários podem ser removidos por cleanup.
+- Restore nunca envia mensagem nem executa operação mutável na Meta e nunca
+  libera o sistema automaticamente.
 
 ## Instalação local
 
@@ -64,7 +52,7 @@ Backend:
 
 ```powershell
 cd backend
-npm install
+npm ci
 Copy-Item .env.example .env
 npm start
 ```
@@ -73,16 +61,17 @@ Frontend, em outro terminal:
 
 ```powershell
 cd frontend
-npm install
+npm ci
 Copy-Item .env.example .env
 npm run dev
 ```
 
-Endereços locais:
+Endereços padrão:
 
 - formulário: `http://localhost:5173/participar`;
 - login: `http://localhost:5173/login`;
-- API: `http://localhost:3000/api/teste`.
+- liveness: `http://localhost:3000/api/saude/vivo`;
+- readiness: `http://localhost:3000/api/saude/pronto`.
 
 ## Banco de dados
 
@@ -93,9 +82,6 @@ createdb criar_banco
 psql --set ON_ERROR_STOP=1 --dbname criar_banco --file backend/database/criar_banco.sql
 ```
 
-> Nunca execute `criar_banco.sql` sobre um banco que já tenha estrutura ou
-> dados.
-
 Banco existente:
 
 ```powershell
@@ -103,50 +89,48 @@ cd backend
 npm run banco:migrar
 ```
 
-O runner usa `schema_migrations`, checksum SHA-256, transações e advisory lock.
-Migrations aplicadas não devem ser editadas nem apagadas.
+Nunca execute `criar_banco.sql` em banco ocupado. Migrations aplicadas não podem
+ser editadas ou apagadas.
 
-## Variáveis públicas
+## Ambientes e segredos
 
-O frontend usa somente valores públicos:
-
-```env
-VITE_API_URL=http://localhost:3000
-VITE_WHATSAPP_NUMERO=5521999999999
-VITE_PRIVACIDADE_EMAIL=privacidade@exemplo.com
-```
-
-Tokens, segredos, banco e credenciais da Meta pertencem exclusivamente ao
-ambiente do backend. Arquivos `.env` reais não são versionados.
+O frontend recebe apenas valores públicos. Banco, JWT, assinatura de backup e
+credenciais Meta pertencem ao backend e devem ser configurados no painel seguro
+da DigitalOcean. `.env.example` contém somente nomes e exemplos, nunca valores
+reais. Consulte [backend/.env.example](backend/.env.example).
 
 ## Validação
 
+Use os runners isolados para evitar qualquer banco externo:
+
 ```powershell
 cd backend
-npm test
-npm run testar:schema-vazio
+npm run testar:correcoes-finais
+npm run testar:fluxo-campanhas-meta
+npm run testar:backup-completo-isolado
+npm run testar:restore-isolado
+npm run testar:e2e
 
 cd ..\frontend
+npm run testar:backups
+npm run testar:restauracao-renderizada
 npm run build
 ```
 
-Os resultados datados das implementações de campanha e Meta ficam nos arquivos
-`RELATORIO_*.md`. Eles são evidências históricas e não substituem uma nova
-execução antes de publicar alterações.
+Os runners isolados exigem PostgreSQL em loopback. Não execute a suíte genérica
+contra uma configuração cuja origem não tenha sido confirmada.
 
 ## Documentação
 
+- [Status final e checklists](STATUS_FINAL_DO_PROJETO.md)
+- [Documentação Técnica Oficial](DOCUMENTACAO_TECNICA_OFICIAL.md)
+- [Documentação Técnica Oficial em PDF](output/pdf/DOCUMENTACAO_TECNICA_OFICIAL_ACORDA_RJ.pdf)
 - [Documentação técnica consolidada](README_TECNICO.md)
 - [Backend](backend/README.md)
 - [Frontend](frontend/README.md)
-- [Prompt mestre para continuidade ou reconstrução](PROMPT_MESTRE.md)
-- relatórios datados: `RELATORIO_*.md`.
+- [Prompt mestre de reconstrução do zero](PROMPT_MESTRE.md)
+- [Homologação pré-deploy](relatorios/RELATORIO_HOMOLOGACAO_PRE_DEPLOY_2026-09-17.md)
+- [Auditoria final](relatorios/RELATORIO_AUDITORIA_FINAL_ENTREGA_2026-09-17.md)
 
-## Produção
-
-- configure o frontend com a URL HTTPS da API;
-- configure `FRONTEND_URL` no backend com o domínio final do frontend;
-- mantenha segredos somente nos painéis da hospedagem;
-- aplique somente migrations pendentes em bancos existentes;
-- use `/api/saude/vivo` para liveness e `/api/saude/pronto` para readiness;
-- não faça mudanças estruturais sem backup e teste de restauração.
+Os demais arquivos em `relatorios/` são evidências históricas por fase e não
+substituem o status final nem uma nova validação após alterações.

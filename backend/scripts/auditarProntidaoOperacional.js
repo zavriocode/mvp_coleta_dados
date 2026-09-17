@@ -182,6 +182,7 @@ async function principal() {
   const url=new URL('postgresql://localhost'); url.hostname=host; url.port=String(cfg.port); url.username=cfg.user; url.password=cfg.password; url.pathname='/'+nome;
   const env={...process.env,DATABASE_URL:url.toString(),BANCO_SSL:'false',NODE_ENV:'test',
     JWT_SECRET:crypto.randomBytes(40).toString('hex'),JWT_TEMPO_EXPIRACAO:'1h',
+    BACKUP_ASSINATURA_CHAVE:crypto.randomBytes(32).toString('hex'),
     META_GRAPH_API_VERSION:'v99.0',META_APP_ID:'1122334455',META_APP_SECRET:'fake',WHATSAPP_ACCESS_TOKEN:'fake',
     WHATSAPP_PHONE_NUMBER_ID:'123456789',WHATSAPP_BUSINESS_ACCOUNT_ID:'987654321',WHATSAPP_WEBHOOK_VERIFY_TOKEN:'fake',WHATSAPP_OPTOUT_BUTTON_ID:'nao_quero_mais_receber'};
   async function run(arquivo,args=[],codigo=0) {
@@ -205,7 +206,7 @@ async function principal() {
     for(const script of ['testarResilienciaMensageria.js','testarWebhookMensageria.js','testarCenarioFinalCampanhaMeta.js','testarBackups.js','testarCampanhas.js']) {
       const fresh=new pg.Client({...cfg,database:nome}); await fresh.connect();
       try {
-        await fresh.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public');
+        await fresh.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public; DROP SCHEMA IF EXISTS recuperacao CASCADE');
         await fresh.query(fs.readFileSync(path.join(__dirname,'../database/criar_banco.sql'),'utf8'));
         const hash=await require('bcrypt').hash('SenhaQACampanhas123!',4);
         await fresh.query("INSERT INTO usuarios(nome,email,senha_hash,perfil) VALUES('QA Admin','qa.campanhas@invalid.local',$1,'administrador')",[hash]);

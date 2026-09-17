@@ -1,5 +1,10 @@
 # Fase 2 — decisão de consistência antes da implementação
 
+> **Documento histórico de decisão.** A suspensão registrada abaixo foi
+> resolvida e a Fase 2 foi implementada. Consulte
+> [RELATORIO_RESTAURACAO_ADMINISTRATIVA_FASE_2.md](RELATORIO_RESTAURACAO_ADMINISTRATIVA_FASE_2.md)
+> e [../STATUS_FINAL_DO_PROJETO.md](../STATUS_FINAL_DO_PROJETO.md).
+
 Data: 16/09/2026.
 Estado: auditoria estática concluída; implementação operacional suspensa pela
 regra final do pedido: parar e documentar decisão arquitetural que aumente risco.

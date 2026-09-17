@@ -1,719 +1,190 @@
 # README técnico — ACORDA RJ
 
-Este documento descreve o estado atual do frontend e do backend do projeto **Acorda RJ**. Ele foi produzido a partir do código, do schema PostgreSQL e dos scripts existentes no repositório.
+Estado consolidado em 17/09/2026. Consulte também
+[STATUS_FINAL_DO_PROJETO.md](STATUS_FINAL_DO_PROJETO.md) e a
+[Documentação Técnica Oficial](DOCUMENTACAO_TECNICA_OFICIAL.md).
 
-## 1. Visão geral
-
-O sistema coleta dados comunitários por um formulário público e oferece um painel interno para gestão de contatos, eventos, consentimentos, importações, relatórios, exclusões e backups.
-
-Componentes da solução:
-
-- frontend React/Vite;
-- API Node.js/Express;
-- PostgreSQL acessado diretamente pelo pacote `pg`;
-- autenticação por JWT;
-- dois perfis internos: `operador` e `administrador`;
-- schema completo para criação de banco vazio em `backend/database/criar_banco.sql`.
-
-O formulário público, o login e o painel administrativo usam a identidade **ACORDA RJ**.
-
-Telefone possui um único padrão visual no sistema: `(DD) 99999-9999` para celulares brasileiros e `(DD) 9999-9999` para telefones com 10 dígitos. A coluna `telefone_normalizado` continua sendo a referência interna para impedir duplicidades; a migration `005_padronizar_telefones_contatos.sql` corrige os contatos já existentes.
-
-## 2. Estrutura do repositório
+## 1. Arquitetura
 
 ```text
-MVP_coletas_dados/
-  backend/
-    database/
-      criar_banco.sql
-    scripts/
-    src/
-      config/
-      middlewares/
-      modules/
-      utils/
-      app.js
-      server.js
-    .env.example
-    package.json
-  frontend/
-    public/
-    src/
-      components/
-      data/
-      pages/
-      services/
-      styles/
-      utils/
-      App.jsx
-      main.jsx
-    .env.example
-    package.json
-    vercel.json
-    vite.config.js
+frontend React/Vite (Vercel)
+        |
+        | HTTPS/JSON ou multipart autenticado
+        v
+backend Node.js/Express (DigitalOcean App Platform)
+        |                         |
+        v                         v
+PostgreSQL 18              WhatsApp Cloud API
+        ^                         |
+        |                         v
+        +--- webhook HMAC / caixa preservada
 ```
 
-## 3. Backend
+O backend é a autoridade de segurança e regras. PostgreSQL é a fonte de verdade
+operacional. A Meta é a fonte dos estados oficiais externos. O frontend nunca
+decide autorização e nenhuma operação crítica depende somente do cliente.
 
-### 3.1 Tecnologias e dependências
-
-- Node.js e CommonJS;
-- Express 5;
-- PostgreSQL e `pg`;
-- `bcrypt` para hash e comparação de senhas;
-- `jsonwebtoken` para JWT;
-- `helmet` para cabeçalhos de segurança;
-- `cors` com origem configurada;
-- `multer` para receber arquivos em memória;
-- `exceljs` para ler XLSX e gerar Excel;
-- `dotenv` para configuração local;
-- `compression` para reduzir respostas JSON;
-- `express-rate-limit` para proteção contra abuso.
-
-O backend não utiliza TypeScript, ORM, Prisma ou Sequelize. Todo acesso ao banco é feito com SQL parametrizado.
-
-### 3.2 Arquitetura
-
-A API é modular por funcionalidade. O fluxo predominante é:
+Fluxo interno predominante:
 
 ```text
-rota -> controller -> service -> model -> PostgreSQL
+route -> middleware -> controller -> service -> model -> PostgreSQL
 ```
 
-Responsabilidades:
+Tecnologias:
 
-- rota: endpoint e middlewares;
-- controller: recebe requisição, chama o service e define a resposta HTTP;
-- service: valida dados e aplica regras de negócio;
-- model: executa SQL parametrizado e transações;
-- middleware: autenticação, autorização e tratamento uniforme de erros;
-- utilitário: funções compartilhadas, como normalização do telefone e criação de erros HTTP.
+- Node.js 24, Express 5, CommonJS e JavaScript;
+- PostgreSQL 18 e pacote `pg`, com SQL parametrizado e sem ORM;
+- bcrypt, JWT, Helmet, CORS, rate limit e limites de concorrência;
+- React 19, React Router 7, Vite 8 e Fetch API;
+- `pg_dump`/`pg_restore` 18.x no runtime.
 
-Módulos atuais:
+## 2. Módulos
 
 | Módulo | Responsabilidade |
 |---|---|
-| `autenticacao` | Login, bloqueio por tentativas e emissão do JWT. |
-| `usuarios` | Listagem e criação de usuários, nome e senha próprios e senha de operador. |
-| `contatos` | Cadastro público/manual, listagem, detalhes, consentimentos e histórico. |
-| `bairros` | Catálogo dos 166 bairros ativos. |
-| `origens` | Origens do cadastro manual e das importações. |
-| `importacoes` | Pré-visualização e confirmação de VCF, CSV e XLSX. |
-| `relatorios` | Resumo, gráficos e exportações CSV/Excel. |
-| `eventos` | Criação, edição, ativação, encerramento e auditoria. |
-| `exclusoes` | Solicitação, aprovação ou rejeição de exclusão. |
-| `backups` | Geração e histórico de backups PostgreSQL. |
-| `teste` | Verificação de disponibilidade da API e do banco. |
-
-### 3.3 Inicialização e configuração
-
-```powershell
-cd backend
-npm install
-Copy-Item .env.example .env
-npm start
-```
-
-Variáveis suportadas:
-
-```env
-NODE_ENV=development
-PORTA=3000
-BANCO_NOME=criar_banco
-BANCO_HOST=localhost
-BANCO_PORTA=5432
-BANCO_USUARIO=
-BANCO_SENHA=
-BANCO_SSL=false
-BANCO_SSL_REJEITAR_NAO_AUTORIZADO=true
-BANCO_POOL_MAX=5
-BANCO_POOL_OCIOSO_MS=30000
-BANCO_CONEXAO_TEMPO_LIMITE_MS=5000
-BANCO_CONEXAO_TEMPO_MAXIMO_SEGUNDOS=300
-BANCO_COMANDO_TEMPO_LIMITE_MS=15000
-BANCO_CONSULTA_TEMPO_LIMITE_MS=20000
-BANCO_BLOQUEIO_TEMPO_LIMITE_MS=5000
-BANCO_TRANSACAO_OCIOSA_TEMPO_LIMITE_MS=15000
-DATABASE_URL=
-FRONTEND_URL=http://localhost:5173
-JWT_SECRET=
-JWT_TEMPO_EXPIRACAO=8h
-LOGIN_LIMITE_CONTA=5
-LOGIN_LIMITE_IP=20
-LOGIN_JANELA_MINUTOS=15
-LOGIN_BLOQUEIO_MINUTOS=15
-TRUST_PROXY_HOPS=0
-DIGITALOCEAN_CONFIAR_IP=false
-API_REQUISICOES_CONCORRENTES=100
-API_LIMITE_JANELA_MS=60000
-API_LIMITE_MAXIMO=1200
-PUBLICO_LIMITE_JANELA_MS=900000
-PUBLICO_LIMITE_MAXIMO=5
-BAIRROS_CACHE_MS=300000
-PG_DUMP_CAMINHO=
-BACKUP_TEMPO_LIMITE_MS=600000
-BACKUP_CONEXAO_TEMPO_LIMITE_SEGUNDOS=10
-BACKUP_MAX_FILA_BANCO=2
-BACKUP_BANCO_TAMANHO_MAXIMO_BYTES=2147483648
-RELATORIO_LIMITE_REGISTROS=50000
-WHATSAPP_WEBHOOK_VERIFY_TOKEN=
-META_APP_SECRET=
-META_APP_ID=
-WHATSAPP_ACCESS_TOKEN=
-WHATSAPP_PHONE_NUMBER_ID=
-WHATSAPP_BUSINESS_ACCOUNT_ID=
-META_GRAPH_API_VERSION=
-META_REQUISICAO_TIMEOUT_MS=10000
-META_TEMPLATES_SINCRONIZACAO_AUTOMATICA=true
-META_TEMPLATES_SINCRONIZACAO_ATRASO_INICIAL_MS=5000
-META_TEMPLATES_SINCRONIZACAO_INTERVALO_MS=900000
-WHATSAPP_OPTOUT_BUTTON_ID=nao_quero_mais_receber
-```
-
-`DATABASE_URL` substitui as variáveis `BANCO_*` em ambientes gerenciados. Credenciais e segredos devem existir somente no `.env` local ou no painel seguro da hospedagem.
-
-### 3.4 Segurança
-
-- senhas armazenadas somente como hash bcrypt;
-- JWT enviado no cabeçalho `Authorization: Bearer <token>`;
-- todas as rotas `/api/admin/*` passam pelo middleware JWT;
-- autorização de administrador também é validada no backend;
-- CORS limitado por `FRONTEND_URL`;
-- Helmet habilitado;
-- SQL parametrizado;
-- telefone normalizado antes de busca e persistência;
-- telefone normalizado único no banco;
-- auditoria de tentativas de login;
-- bloqueio temporário por excesso de falhas de conta, e-mail ou IP;
-- erros internos retornam mensagem genérica, sem expor detalhes técnicos;
-- exportação, backups, usuários, análise de exclusões e escrita de eventos são exclusivos de administradores.
-- rate limit público por IP/telefone e limite global por IP;
-- limite de concorrência e backpressure com 503/`Retry-After`;
-- pool PostgreSQL limitado e com timeouts;
-- encerramento gracioso e endpoints de readiness/liveness;
-- `X-Request-Id`, compressão e limite de corpo;
-- validação de segredos, HTTPS e TLS antes de iniciar em produção.
-
-### 3.5 Rotas públicas
-
-| Método | Endpoint | Resultado |
-|---|---|---|
-| `GET` | `/api/teste` | Testa API e conexão PostgreSQL. |
-| `GET` | `/api/saude/vivo` | Confirma que o processo está vivo. |
-| `GET` | `/api/saude/pronto` | Confirma conexão e tabelas/colunas críticas do PostgreSQL. |
-| `GET` | `/api/publico/contatos/opcoes` | Retorna bairros e categorias; valida `eventoId` quando informado. |
-| `POST` | `/api/publico/contatos/verificar-evento` | Compara nome completo e telefone sem retornar dados pessoais. |
-| `POST` | `/api/publico/contatos/inscrever-evento` | Vincula ao evento informado um contato existente já identificado. |
-| `POST` | `/api/publico/contatos` | Registra ou complementa um contato pelo telefone. |
-| `POST` | `/api/autenticacao/login` | Valida credenciais e retorna JWT e usuário. |
-| `GET` | `/api/webhooks/whatsapp` | Valida token e devolve o challenge oficial. |
-| `POST` | `/api/webhooks/whatsapp` | Valida HMAC do corpo bruto e normaliza eventos. |
-
-O cadastro público recebe:
-
-```json
-{
-  "nome": "Nome da pessoa",
-  "telefone": "(21) 99999-9999",
-  "bairro": "Vila Kennedy",
-  "idade": 30,
-  "problema": "Saúde",
-  "eventoIdExibido": 1,
-  "aceitePrivacidade": true,
-  "autorizacaoMensagens": false,
-  "autorizacaoLigacoes": false
-}
-```
-
-Regras principais:
-
-- nome, telefone, bairro, idade, categoria e aceite de privacidade são obrigatórios;
-- idade deve ser inteira entre 16 e 120; valores abaixo de 16 são bloqueados no
-  frontend, no service e pela constraint do PostgreSQL;
-- o bairro deve existir e estar ativo no catálogo do banco;
-- a categoria deve existir no catálogo centralizado do backend;
-- mensagens e ligações são escolhas independentes; no formulário público,
-  ambas iniciam desmarcadas e exigem escolha voluntária;
-- o telefone é reduzido a dígitos e deve ter de 10 a 15 números;
-- o formulário não contém descrição do problema nem pergunta eleitoral;
-- somente o formulário com `eventoId` válido cria vínculo com evento;
-- `eventoIdExibido` recebe o identificador mostrado ou `null` quando não havia evento;
-- se o evento informado encerrar ou sair do período antes do envio, a transação é cancelada e nada é persistido parcialmente;
-- submissões usam advisory lock compartilhado; edição e mudança de status usam o lock exclusivo correspondente;
-- o cadastro geral segue normalmente, independentemente dos eventos ativos;
-- telefone existente não provoca sobrescrita silenciosa no fluxo público;
-- somente campos anteriormente vazios podem ser complementados;
-- durante evento, nome completo e telefone são solicitados antes dos demais campos;
-- telefone inexistente libera o formulário completo e cria o contato antes do vínculo;
-- telefone existente exige correspondência do nome completo, com normalização de maiúsculas, acentos e espaços;
-- falha de correspondência retorna `422`, sem expor dados pessoais, criar contato ou criar vínculo;
-- contato identificado pode confirmar diretamente a participação, sem reenviar os demais campos;
-- `Meus dados mudaram` permite declarar dados atuais após a identificação; a alteração gera histórico `atualizacao_cadastro_publico_evento` e preserva a origem original;
-- vínculo novo de contato existente retorna `200` com `inscricaoEventoCriada: true`;
-- vínculo já existente retorna `200` com `jaInscritoEvento: true` e mensagem de inscrição repetida;
-- se nada mudou, não é criado histórico repetido;
-- a mensagem de sucesso é: `Cadastro realizado com sucesso. Obrigado por contribuir com o projeto Acorda RJ.`
-
-### 3.6 Rotas administrativas
-
-Todas exigem JWT.
-
-| Método | Endpoint | Acesso |
-|---|---|---|
-| `GET` | `/api/admin/contatos` | operador/admin |
-| `POST` | `/api/admin/contatos` | operador/admin |
-| `GET` | `/api/admin/contatos/:id` | operador/admin |
-| `POST` | `/api/admin/contatos/:id/revogar-consentimentos` | operador/admin |
-| `POST` | `/api/admin/contatos/:id/solicitacao-exclusao` | operador/admin |
-| `GET` | `/api/admin/origens` | operador/admin |
-| `GET` | `/api/admin/importacoes` | operador/admin |
-| `POST` | `/api/admin/importacoes/pre-visualizar` | operador/admin |
-| `POST` | `/api/admin/importacoes/:id/confirmar` | operador/admin |
-| `DELETE` | `/api/admin/importacoes/:id` | admin |
-| `GET` | `/api/admin/relatorios/resumo` | operador/admin |
-| `GET` | `/api/admin/relatorios/exportar.csv` | admin |
-| `GET` | `/api/admin/relatorios/exportar.xlsx` | admin |
-| `GET` | `/api/admin/eventos` | operador/admin |
-| `POST` | `/api/admin/eventos` | admin |
-| `PUT` | `/api/admin/eventos/:id` | admin |
-| `DELETE` | `/api/admin/eventos/:id` | admin; exclusão lógica |
-| `POST` | `/api/admin/eventos/:id/ativar` | admin |
-| `POST` | `/api/admin/eventos/:id/encerrar` | admin |
-| `GET` | `/api/admin/solicitacoes-exclusao` | admin |
-| `POST` | `/api/admin/solicitacoes-exclusao/:id/aprovar` | admin |
-| `POST` | `/api/admin/solicitacoes-exclusao/:id/rejeitar` | admin |
-| `GET` | `/api/admin/backups` | admin |
-| `POST` | `/api/admin/backups/banco` | admin |
-| `GET` | `/api/admin/usuarios` | admin |
-| `POST` | `/api/admin/usuarios` | admin |
-| `PATCH` | `/api/admin/usuarios/meu-perfil` | admin |
-| `PATCH` | `/api/admin/usuarios/meu-perfil/senha` | admin, exige senha atual |
-| `PATCH` | `/api/admin/usuarios/:id/senha` | admin, alvo operador |
-| `GET/POST` | `/api/admin/campanhas` | leitura operador/admin; criação admin |
-| `PUT` | `/api/admin/campanhas/:id` | admin, antes de reservas |
-| `POST` | `/api/admin/campanhas/:id/status` | admin |
-| `GET` | `/api/admin/campanhas/:id/publico` | operador/admin |
-| `GET/POST` | `/api/admin/campanhas/:id/lotes` | operador/admin |
-| `GET` | `/api/admin/campanhas/:id/falhas` | operador/admin; falhas atuais aptas a reprocessamento |
-| `GET/POST/PUT` | `/api/admin/campanhas/templates` | leitura operador/admin; escrita admin |
-| `POST` | `/api/admin/campanhas/templates/sincronizar-meta` | sincronização oficial paginada; admin |
-| `POST` | `/api/admin/campanhas/templates/imagem-exemplo` | upload oficial do exemplo JPG/PNG para obter o `header_handle`; admin |
-| `POST` | `/api/admin/campanhas/templates/:id/submeter-meta` | submissão oficial para análise; admin |
-| `PUT` | `/api/admin/campanhas/templates/:id/configuracao-envio` | parâmetros locais de envio; admin |
-| `GET` | `/api/admin/campanhas/configuracao/limite` | operador/admin |
-| `PUT` | `/api/admin/campanhas/configuracao/limite` | admin, com motivo |
-| `POST` | `/api/admin/mensageria/tentativas/:id/reprocessar` | operador/admin |
-| `POST` | `/api/admin/mensageria/tentativas/:id/enviar` | operador/admin |
-
-A listagem de contatos usa paginação padrão de 20, máximo de 100, e aceita:
-
-- `nome`, `telefone`, `bairro`, `problema`, `origem` e `status`;
-- `consentimentoWhatsapp` e `consentimentoLigacoes`;
-- `autorizacaoMensagens` e `autorizacaoLigacoes`;
-- `idadeMinima` e `idadeMaxima`;
-- `dataInicial` e `dataFinal`;
-- `eventoId=<id>` ou `eventoId=sem_evento`;
-- `ordenacao=mais_recentes|mais_antigos|nome_asc|nome_desc`;
-- `pagina` e `limite`.
-
-Nome e telefone podem ser combinados com `eventoId`. O botão `Ver participantes` da tela de eventos abre essa listagem com o evento selecionado, permitindo conferir rapidamente uma inscrição por nome completo ou telefone formatado.
-
-### 3.7 Perfis e permissões
-
-| Ação | Operador | Administrador |
-|---|---:|---:|
-| Consultar, cadastrar e atualizar contatos | Sim | Sim |
-| Importar VCF/CSV/XLSX | Sim | Sim |
-| Excluir importação e contatos criados por ela | Não | Sim |
-| Revogar mensagens ou ligações | Sim | Sim |
-| Solicitar exclusão | Sim | Sim |
-| Visualizar eventos | Sim | Sim |
-| Criar, editar, ativar ou encerrar eventos | Não | Sim |
-| Consultar campanhas e criar lotes | Sim | Sim |
-| Criar campanha, template ou alterar limite | Não | Sim |
-| Aprovar ou rejeitar exclusão | Não | Sim |
-| Exportar CSV/Excel | Não | Sim |
-| Gerar backup | Não | Sim |
-| Criar usuários | Não | Sim |
-| Redefinir senha de operador | Não | Sim |
-| Alterar a própria senha | Não | Sim |
-
-Um administrador pode:
-
-- atualizar o próprio nome;
-- alterar a própria senha confirmando a senha atual;
-- criar operador ou administrador;
-- redefinir a senha de um operador.
-
-Um administrador não pode alterar a conta nem a senha de outro administrador.
-
-### 3.8 Importação
-
-- formatos: VCF exportado pelo celular, CSV e XLSX;
-- o seletor é único e o backend identifica o formato pelo conteúdo e pela extensão;
-- no VCF, o nome é lido de `FN` ou `N` e cada telefone encontrado gera uma linha de pré-visualização;
-- números brasileiros com ou sem `+55` compartilham a mesma normalização contra duplicidade;
-- tamanho máximo: 5 MB, preservado para evitar pressão excessiva de memória na instância de 512 MiB;
-- máximo: 20.000 linhas;
-- processamento em duas etapas: pré-visualizar e confirmar;
-- pré-visualização e confirmação em lotes parametrizados de 500 linhas;
-- apenas uma confirmação pode ser processada por vez, coordenada por advisory lock do PostgreSQL;
-- falha inesperada em lote retorna ao processamento isolado das linhas afetadas;
-- telefone é o único dado obrigatório da linha;
-- o banco mantém `NULL` em campos ausentes; a interface mostra `Não informado`;
-- linhas inválidas, repetidas ou já processadas são identificadas;
-- contato existente pode receber somente informações que estavam vazias;
-- dados já preenchidos não são silenciosamente substituídos;
-- as origens de importação existentes podem ser reutilizadas e novas origens podem ser cadastradas durante a pré-visualização;
-- a tela lista os metadados dos lotes sem expor os dados importados;
-- somente o administrador exclui uma importação; a operação remove os contatos criados por ela e suas dependências, preservando a origem e os contatos preexistentes apenas complementados ou ignorados;
-- complementos efetivos geram histórico;
-- a importação não cria consentimentos automaticamente;
-- nomes exclusivamente numéricos são tratados como ausentes; registros antigos são normalizados com o valor anterior preservado no histórico.
-
-Cabeçalhos reconhecidos:
-
-| Dado | Cabeçalhos aceitos |
-|---|---|
-| telefone | `telefone`, `celular`, `whatsapp` |
-| nome | `nome`, `nome_completo` |
-| bairro | `bairro` |
-| idade | `idade` |
-| categoria | `categoria`, `categoria_problema`, `problema` |
-| descrição legada/opcional da importação | `descricao`, `descricao_problema`, `detalhes` |
-
-A descrição continua aceita somente por compatibilidade das importações e do cadastro interno. Ela não aparece no formulário público.
-
-### 3.9 Consentimentos e privacidade
-
-- o consentimento para participação voluntária é obrigatório, versionado e
-  separado das autorizações de comunicação;
-- mensagens e ligações são autorizações separadas;
-- mensagens representam o opt-in específico para comunicações pelo WhatsApp;
-- os textos apresentados são armazenados com versão, canal e origem;
-- a data/hora fica em `criado_em`; revogação, motivo, estado e registro anterior
-  permanecem na mesma trilha normalizada;
-- a mesma resposta, texto, versão e origem não deve gerar evento duplicado;
-- revogação cria novo registro e referencia o anterior;
-- revogações não são apagadas;
-- revogação e solicitação de exclusão bloqueiam os usos correspondentes;
-- pedido pendente bloqueia mensagens e ligações;
-- o consentimento legado `mensagens_whatsapp` não é convertido automaticamente.
-- os textos ativos são `aviso_privacidade_v3`, `mensagens_whatsapp_v3` e
-  `ligacoes_v3`; versões anteriores permanecem preservadas;
-- a Política de Privacidade documenta controlador, bases legais, idade mínima,
-  fornecedores, transferências internacionais, retenção, segurança e direitos;
-- comunicação política autorizada não permite inferência ou segmentação por
-  opinião política.
-
-### 3.10 Exclusão
-
-Operador e administrador podem solicitar. Somente administrador pode aprovar ou rejeitar.
-
-Ao aprovar:
-
-- o contato é excluído fisicamente;
-- dados pessoais dependentes são removidos conforme as chaves estrangeiras;
-- consentimentos e a solicitação permanecem como trilha administrativa sem referência ativa ao contato;
-- a solicitação registra solicitante, analista, datas e observações.
-
-Não existe endpoint de exclusão direta de contato, revogação ou histórico.
-
-### 3.11 Eventos
-
-- estados operacionais: `rascunho`, `ativo` e `encerrado`; a exclusão lógica usa `excluido`;
-- vários eventos podem estar ativos simultaneamente;
-- contém nome e data/horário do evento;
-- a criação, edição, ativação, encerramento e exclusão geram histórico;
-- `/participar` permanece como cadastro geral e cada evento usa `/participar?evento=<id>`;
-- o backend decide automaticamente se o telefone é novo ou se nome completo e telefone correspondem a um cadastro existente;
-- o contato permanece único e mantém a origem original quando participa posteriormente de um evento;
-- a restrição única de `contato_eventos` impede repetição do mesmo par contato/evento;
-- inscrições repetidas retornam uma confirmação clara sem criar outro vínculo;
-- operadores acessam a tela em modo somente leitura e podem abrir a lista de participantes;
-- somente administradores veem e executam criação, edição, ativação, encerramento e exclusão;
-- excluir remove o evento das telas operacionais sem apagar participantes, contatos ou históricos;
-- a criação disponibiliza um QR Code SVG com `/participar?evento=<id>`;
-- o backend valida o identificador do QR e retorna `410` quando o evento foi encerrado ou saiu do período;
-- listagem e relatórios podem filtrar pelo evento ou por ausência de evento.
-
-### 3.12 Campanhas, lotes e mensageria
-
-`modelos_mensagem` guarda templates. `campanhas` registra nome, finalidade,
-template, responsável, status e snapshot imutável dos filtros depois da primeira
-reserva. A segmentação reutiliza a função canônica dos contatos, inclusive bairro,
-problema, evento, cadastro incompleto e consentimentos.
-
-`campanha_lotes` registra tamanho solicitado e efetivo, ordem e chave de
-idempotência. A reserva usa transação, advisory lock e `FOR UPDATE SKIP LOCKED`.
-`campanha_participacoes` possui `UNIQUE (campanha_id, contato_id)`: o contato pode
-participar de campanhas distintas, mas não é repetido dentro da mesma campanha.
-
-Na elegibilidade de mensagens, ausência de resposta permanece como “não
-informado” e não bloqueia o contato. Recusa ou revogação expressa, bloqueio ativo
-e solicitação de exclusão pendente impedem tanto a reserva quanto o envio.
-
-Cada participação mantém o lote original. `campanha_tentativas` preserva cada
-processamento e permite reprocessar falhas sem recriar a participação. O histórico
-imutável aceita `pendente`, `enviando`, `enviada`, `entregue`, `lida` e `falhou`,
-ignora repetição e evento atrasado e rejeita regressão de estado.
-
-O limite móvel começa em 250 reservas por 24 horas e fica em
-`configuracoes_sistema`. Somente administrador altera o valor, sempre com motivo;
-valor anterior, novo valor, usuário e data ficam no histórico.
-
-O limite oficial atual e consultado no campo
-`whatsapp_business_manager_messaging_limit` da Meta. O limite efetivo e sempre o
-menor entre a protecao interna e o ultimo limite oficial finito registrado em
-`sincronizacoes_limite_meta`. O webhook `business_capability_update` aceita
-`max_daily_conversations_per_business`. Falhas preservam o ultimo valor seguro.
-
-O webhook público fica em `/api/webhooks/whatsapp`. O GET valida o token e devolve
-o challenge. O POST calcula HMAC SHA-256 sobre os bytes exatos do corpo bruto,
-usa comparação segura, limita o corpo, não armazena payload bruto e encaminha
-eventos normalizados à mensageria. O envio de templates aprovados usa a WhatsApp Cloud API oficial,
-com credenciais exclusivas do backend, timeout, idempotência por tentativa e erros sanitizados.
-O evento oficial `message_template_status_update` atualiza ou importa templates
-automaticamente; a sincronização manual permanece apenas como contingência.
-Além do webhook, o backend reconcilia a lista oficial ao iniciar em produção e
-a cada 15 minutos por padrão. Templates ausentes da WABA configurada são
-preservados no histórico como `NOT_FOUND`, mas deixam de aparecer na lista
-operacional.
-O opt-out oficial recebido pelo webhook revoga mensagens e mantém o contato globalmente bloqueado.
-
-### 3.13 Relatórios, exportação e backup
-
-Relatórios apresentam totais e agrupamentos por bairro, categoria, origem, idade, data e evento. Também relacionam cada bairro às necessidades registradas. Gráficos e itens territoriais abrem a listagem com os filtros correspondentes. A quantidade máxima carregada é limitada por `RELATORIO_LIMITE_REGISTROS`.
-
-Exportações:
-
-- CSV separado por ponto e vírgula;
-- planilha XLSX;
-- exclusivas para administrador;
-- usam os mesmos filtros do relatório;
-- nomes no formato `acorda-rj-contatos-AAAA-MM-DD_HH-mm-ss`.
-
-Backup:
-
-- executa `pg_dump` sem shell;
-- formato SQL em texto legível e restaurável pelo PostgreSQL;
-- usa `--format=plain --data-only` para incluir todos os registros sem copiar a estrutura;
-- exige um banco com estrutura compatível para restauração;
-- exclusivo para administrador;
-- impede duas execuções simultâneas;
-- calcula SHA-256;
-- registra responsável, estado, nome, tamanho, hash e eventual erro;
-- remove o arquivo temporário do servidor depois do download;
-- nome no formato `acorda-rj-dados-AAAA-MM-DD_HH-mm-ss.sql`.
-
-### 3.14 Banco de dados
-
-O schema possui 31 tabelas:
-
-| Grupo | Tabelas |
-|---|---|
-| Cadastro | `bairros`, `origens`, `usuarios`, `contatos` |
-| Privacidade e auditoria | `consentimentos`, `aceites_privacidade`, `historico_contatos`, `solicitacoes_exclusao`, `tentativas_login`, `backups_banco` |
-| Eventos | `eventos`, `historico_eventos`, `contato_eventos` |
-| Importação e conteúdo | `importacoes`, `importacao_linhas`, `textos_formulario` |
-| Histórico legado | `numeros_whatsapp`, `comunicacoes`, `historico_comunicacoes` |
-| Campanhas e mensageria | `modelos_mensagem`, `historico_modelos_mensagem_meta`, `campanhas`, `campanha_lotes`, `campanha_participacoes`, `campanha_tentativas`, `historico_status_mensageria`, `configuracoes_sistema`, `historico_configuracoes_sistema`, `eventos_webhook_mensageria`, `sincronizacoes_limite_meta` |
-| Evolução estrutural | `schema_migrations` |
-
-Proteções relevantes:
-
-- identidade numérica e chaves estrangeiras;
-- telefone normalizado único;
-- e-mail de usuário único sem diferenciar maiúsculas/minúsculas;
-- vários eventos ativos e inscrição única por contato/evento;
-- apenas uma solicitação pendente por contato;
-- apenas um consentimento ativo de cada tipo por contato;
-- índices de busca, filtros e datas;
-- triggers de atualização de data.
-
-As tabelas manuais antigas permanecem apenas para consulta do histórico existente.
-
-Para criar um banco novo e vazio:
-
-```powershell
-createdb criar_banco
-psql --set ON_ERROR_STOP=1 --dbname criar_banco --file backend/database/criar_banco.sql
-```
-
-O projeto utiliza migrations incrementais em `backend/database/migrations`, aplicadas por `npm run banco:migrar`. O ledger guarda versão, arquivo, checksum SHA-256 e data. Advisory lock impede dois runners simultâneos e cada migration usa transação. O script completo continua exclusivo para banco vazio e já registra as migrations incorporadas.
-
-## 4. Frontend
-
-### 4.1 Tecnologias
-
-- React 19;
-- React DOM;
-- React Router DOM 7;
-- Vite 8;
-- `qrcode.react` para renderizar o QR Code exclusivo dos eventos;
-- JavaScript e CSS, sem TypeScript;
-- Fetch API nativa.
-
-Os componentes, o layout responsivo e os gráficos são implementados no próprio frontend; `qrcode.react` é utilizado somente para a codificação visual do QR Code.
-
-### 4.2 Rotas e páginas
-
-| Rota | Página | Acesso |
-|---|---|---|
-| `/` | Redireciona para `/participar` | público |
-| `/participar` | Formulário Acorda RJ | público |
-| `/privacidade` | Política de Privacidade | público |
-| `/termos` | Termos de Uso | público |
-| `/excluir-dados` | Orientação para exclusão e revogação | público |
-| `/login` | Login administrativo | público |
-| `/admin` | Visão geral com indicadores | operador/admin |
-| `/admin/contatos` | Listagem, filtros e paginação | operador/admin |
-| `/admin/contatos/:id` | Detalhes, histórico e privacidade | operador/admin |
-| `/admin/contatos/novo` | Cadastro/atualização interna | operador/admin |
-| `/admin/importacoes` | VCF/CSV/XLSX | operador/admin |
-| `/admin/relatorios` | Indicadores, gráficos e exportação | operador/admin |
-| `/admin/eventos` | Consulta para operador; gestão para administrador | operador/admin |
-| `/admin/campanhas` | Campanhas, templates, público, lotes e métricas | operador/admin |
-| `/admin/solicitacoes-exclusao` | Fila de análise | admin |
-| `/admin/backups` | Backup e histórico | admin |
-| `/admin/usuarios` | Usuários e senhas de operadores | admin |
-| `*` | Página não encontrada | público |
-
-### 4.3 Organização
-
-- `pages`: telas vinculadas às rotas;
-- `components`: campos, seletores, paginação, tabela, mensagens, navegação e proteção de rotas;
-- `services`: comunicação HTTP por domínio;
-- `utils`: token e formatação de telefone;
-- `data`: textos de consentimento usados pelo formulário;
-- `styles`: CSS global, público, login e painel.
-
-O serviço `api.js`:
-
-- lê `VITE_API_URL`;
-- remove barras extras da URL;
-- adiciona JSON quando necessário;
-- injeta o Bearer Token em chamadas autenticadas;
-- preserva `FormData` para upload;
-- transforma falhas HTTP e de conexão em mensagens para a interface.
-- repete somente consultas GET diante de falhas transitórias, com espera progressiva.
-
-O token e os dados básicos do usuário são mantidos no armazenamento local do navegador. Respostas 401 removem a sessão e redirecionam para o login. O frontend oculta ações não permitidas, mas o backend continua sendo a autoridade final.
-
-Respostas de login e de rotas administrativas usam `Cache-Control: no-store` e
-`Pragma: no-cache`, evitando que dados privados sejam mantidos no cache HTTP do
-navegador ou de intermediários.
-
-### 4.4 Formulário público e visual
-
-- nome, bairro e categoria em largura total;
-- telefone e idade lado a lado em telas com espaço e em uma coluna no celular;
-- responsivo para celulares, notebooks e telas maiores;
-- cor principal `#ff5c00`;
-- cabeçalho discreto, formulário direto e rodapé;
-- identificação Acorda RJ e Diogo Ventura;
-- título da aba `Acorda RJ` no formulário e `ACORDA RJ` nas rotas administrativas;
-- seletor pesquisável de bairro;
-- categoria em seleção fechada;
-- autorizações opcionais de WhatsApp e ligações desmarcadas inicialmente;
-- consentimento de participação desmarcado inicialmente, obrigatório e com
-  declaração de idade mínima;
-- contexto de evento exibido somente no link exclusivo válido;
-- no formulário exclusivo, primeira etapa reduzida a nome completo e telefone;
-- contato existente recebe confirmação curta; contato novo segue ao formulário completo;
-- os dados armazenados não são exibidos pela identificação pública;
-- opção `Meus dados mudaram` disponível depois da correspondência;
-- botão de WhatsApp exibido somente se o número estiver configurado;
-- resumo compacto de privacidade após o formulário;
-- links públicos para Privacidade, Termos de Uso e Exclusão de dados.
-
-### 4.5 Configuração e execução
-
-```powershell
-cd frontend
-npm install
-Copy-Item .env.example .env
-npm run dev
-```
-
-```env
-VITE_API_URL=http://localhost:3000
-VITE_WHATSAPP_NUMERO=5521999999999
-VITE_PRIVACIDADE_EMAIL=seu-email-de-privacidade@example.com
-```
-
-O número do WhatsApp deve conter somente país, DDD e número. O botão abre `wa.me` em uma nova aba e não envia dados automaticamente.
-
-Endereços locais padrão:
-
-- formulário: `http://localhost:5173/participar`;
-- login: `http://localhost:5173/login`;
-- saúde da API: `http://localhost:3000/api/teste`.
-
-Build de produção:
-
-```powershell
-npm run build
-```
-
-## 5. Scripts operacionais e testes
-
-Backend:
-
-```powershell
-npm test
-npm run criar-admin -- "Nome" "email@dominio.com" "SenhaForte123!"
-npm run testar:schema-vazio
-npm run testar:importacao-carga
-npm run banco:sincronizar-sequencias
-npm run banco:migrar
-```
-
-O conjunto `npm test` executa verificações de:
-
-- estrutura do banco;
-- cadastro público;
-- administração de contatos;
-- cadastro manual;
-- importações;
-- relatórios e exportações;
-- autenticação, usuários e permissões;
-- privacidade e revogações;
-- eventos e exclusões;
-- backups.
-
-Validação direcionada de 13/08/2026: teste de segurança e usuários aprovado,
-auditorias de dependências sem vulnerabilidades conhecidas e build do frontend
-concluído com 70 módulos transformados. Os relatórios `RELATORIO_*.md` preservam
-os resultados datados das suítes específicas de campanhas, mensageria e Meta.
-
-O teste adicional `testar:importacao-carga` valida separadamente 15.000 contatos temporários em um único arquivo, a rejeição de 20.001 linhas, pré-visualização, confirmação, contagem persistida, limpeza automática e ressincronização das sequências utilizadas. O limite aceito de 20.000 linhas também foi executado com sucesso. O script recusa execução em produção.
-
-## 6. Publicação definida
-
-- frontend: Vercel;
-- backend: DigitalOcean App Platform, 512 MiB;
-- banco: PostgreSQL gerenciado da DigitalOcean.
-
-Na publicação:
-
-1. criar o banco gerenciado na mesma região do backend quando possível;
-2. executar o schema somente no banco vazio;
-3. configurar segredos no painel da DigitalOcean;
-4. publicar a pasta `backend`;
-5. configurar `VITE_API_URL`, `VITE_WHATSAPP_NUMERO` e `VITE_PRIVACIDADE_EMAIL` na Vercel;
-6. configurar `FRONTEND_URL` com o domínio final;
-7. validar SSL, CORS, login, formulário, painel, exportação e backup;
-8. habilitar deploy automático somente na branch de produção desejada.
-9. configurar readiness em `/api/saude/pronto` e liveness em `/api/saude/vivo`;
-10. ativar alertas e testar restauração do backup.
-
-O Vercel Hobby deve ser usado apenas se o projeto se enquadrar nas condições pessoais e não comerciais vigentes da plataforma.
-
-O backend de 512 MiB não permite escala horizontal e o PostgreSQL de nó único não é altamente disponível. Para uma operação que não aceite indisponibilidade por falha de instância, são necessárias pelo menos duas instâncias do backend e um standby do PostgreSQL. O código reduz e recupera falhas transitórias, mas não elimina uma falha física de nó único.
-
-## 7. Pendências reais
-
-- armazenamento externo e política de retenção de backups em produção;
-- definição jurídica final dos textos de privacidade e consentimento;
-- processo formal para alterações incrementais do banco após a publicação.
+| autenticação/usuários | Login, JWT, bloqueio, `auth_epoch`, operador e administrador. |
+| contatos/origens/bairros | Cadastro, unicidade por telefone, filtros e histórico. |
+| consentimentos/privacidade/exclusões | Aceites, revogações, bloqueios e solicitações auditadas. |
+| eventos | Gestão, participantes, links e QR Code. |
+| importações | VCF, CSV e XLSX com confirmação e rastreabilidade. |
+| relatórios | Indicadores e exportações CSV/XLSX. |
+| campanhas | Segmentação, snapshots, lotes, reservas e capacidade. |
+| templates Meta | Sincronização, submissão, estados oficiais e imagens. |
+| mensageria | Tentativas, provider, recovery, webhook e opt-out. |
+| backups/restauração | `.acorda`, inspeção, manutenção, restore e revisão. |
+
+## 3. Autenticação e autorização
+
+- JWT Bearer com expiração configurável e versão global `auth_epoch`.
+- Senhas somente como hash bcrypt.
+- Bloqueio temporário por excesso de falhas de conta/e-mail/IP.
+- Todas as rotas `/api/admin/*` autenticam no backend.
+- Ações administrativas usam middleware de administrador; esconder botão no
+  frontend é somente UX.
+- Restore incrementa `auth_epoch`; sessões anteriores deixam de ser válidas.
+- Respostas privadas usam `Cache-Control: no-store`.
+
+## 4. Contatos, consentimentos e retenção
+
+Telefone canônico possui unicidade no banco. Cadastro público, manual e importado
+convergem para as mesmas regras de consistência. Consentimentos de mensagens e
+ligações são independentes e versionados; recusa, revogação, bloqueio ou pedido
+de exclusão pendente impedem elegibilidade conforme a regra do fluxo.
+
+Dados de negócio e históricos não expiram automaticamente. Cleanup remove apenas
+artefatos técnicos temporários. Exclusões administrativas seguem rotas, locks,
+transações, dependências e auditoria próprias.
+
+## 5. Campanhas e mensageria
+
+- Campanha preserva template e snapshot dos filtros.
+- Lotes possuem chave idempotente e reserva transacional.
+- `UNIQUE (campanha_id, contato_id)` impede repetição do contato na campanha.
+- Tentativas persistem `pendente`, `enviando`, `enviada`, `entregue`, `lida` ou
+  `falhou`, com histórico de transições.
+- Capacidade efetiva é o menor valor entre a proteção interna e o limite oficial
+  finito conhecido da Meta.
+- Somente templates oficiais aptos podem ser enviados.
+- Erro externo é sanitizado antes de log/persistência.
+
+Timeout ou queda após a possível aceitação do provider pode produzir resultado
+indeterminado. Esse estado nunca é reenviado automaticamente. No restart, o
+recovery retoma somente pendências comprovadamente seguras; confirmadas e
+indeterminadas não são duplicadas.
+
+## 6. Webhooks e opt-out
+
+`GET /api/webhooks/whatsapp` valida o token de verificação. O `POST` usa os bytes
+exatos do corpo, HMAC SHA-256 e comparação em tempo seguro.
+
+Eventos possuem idempotência e tratamento de ordem. Evento antecipado ou sem
+correlação permanece preservado. Durante manutenção, o webhook validado é salvo
+no schema `recuperacao` antes do HTTP 200 e reconciliado antes da liberação.
+Payload misto acompanha cada evento separadamente para que opt-out não espere
+consulta de template. Opt-out revoga mensagens e impede novos envios.
+
+## 7. Backup completo
+
+Endpoint administrativo gera um único arquivo
+`acorda-rj-completo-AAAA-MM-DD_HH-mm-ss.acorda`.
+
+- `pg_dump --format=custom --blobs --no-owner --no-acl`;
+- estrutura e dados operacionais completos;
+- schema `recuperacao` excluído;
+- manifesto autenticado, SHA-256, versão PostgreSQL e ledger de migrations;
+- subprocesso sem shell e senha apenas no ambiente do processo;
+- lock de concorrência, timeout, limite preventivo e histórico;
+- download autenticado único e remoção do artefato temporário.
+
+O `.acorda` não inclui `.env`, credenciais externas, configuração da hospedagem ou
+conteúdo remoto apontado por URL. Ele contém dados pessoais e hashes de senha da
+aplicação, não é criptografado e deve ser custodiado como sensível.
+
+## 8. Restore administrativo
+
+O upload é gravado por streaming em diretório privado; não usa `memoryStorage`
+nem materializa o dump inteiro em RAM. Nome do cliente não determina o caminho.
+Tamanho, timeout, disco, memória, expansão e tamanho de registro possuem guardas.
+
+Etapas obrigatórias:
+
+1. autenticar arquivo/manifesto e verificar compatibilidade;
+2. inspecionar em banco isolado e confirmar administrador ativo;
+3. exigir senha/frase administrativa;
+4. ativar manutenção persistente e invalidar sessões;
+5. drenar operações admitidas;
+6. gerar e custodiar backup pré-restore estabilizado;
+7. restaurar sem Meta ou envio;
+8. validar estrutura, dados, sequences e objetos;
+9. reconciliar a caixa de webhooks;
+10. novo login, revisão e liberação manual.
+
+Falha mantém manutenção e recuperação necessária. O schema `recuperacao` fica no
+mesmo PostgreSQL, fora do dump operacional, sem FK para dados restaurados.
+
+## 9. Banco e migrations
+
+- 31 tabelas operacionais;
+- 166 bairros iniciais;
+- migrations contínuas 001–023;
+- migration 022: metadados do backup completo;
+- migration 023: controle preservado de recuperação;
+- ledger com nome, versão e checksum SHA-256;
+- advisory lock e transação por migration.
+
+Para banco vazio, use `database/criar_banco.sql`. Para banco existente, use
+somente `npm run banco:migrar`. Nunca edite migration aplicada.
+
+## 10. Runtime e publicação
+
+Backend na DigitalOcean App Platform:
+
+- source/root: `backend`;
+- buildpack Node, sem Dockerfile;
+- `Aptfile` instala PostgreSQL client 18.4;
+- `heroku-postbuild` confirma `pg_dump --version`;
+- `prestart` executa migrations;
+- `start` executa `node src/server.js`;
+- `/api/saude/vivo` é liveness;
+- `/api/saude/pronto` valida banco e estrutura crítica.
+
+Frontend na Vercel: publicar `frontend`, configurar variáveis públicas e apontar
+`VITE_API_URL` para a API HTTPS. Configurar `FRONTEND_URL` no backend com a origem
+exata da Vercel.
+
+As variáveis obrigatórias, checklists e monitoramento estão em
+[STATUS_FINAL_DO_PROJETO.md](STATUS_FINAL_DO_PROJETO.md). Os nomes e padrões
+completos ficam em `backend/.env.example` e `frontend/.env.example`; nunca gravar
+valores reais nesses arquivos.
+
+## 11. Testes finais
+
+A homologação final cobriu aproximadamente 2.000 contatos, concorrência,
+duplicidade, indeterminação, restart, provider e banco indisponíveis, rollback,
+locks, webhooks, opt-out, backup/restore real, upload grande, autenticação,
+autorização, dependências, frontend, build, migrations e instalação limpa.
+
+Resultado: **SISTEMA APROVADO PARA OPERAÇÃO CONTROLADA.**
+
+Isso não garante comportamento absoluto de serviços externos ou produção. Não
+houve envio Meta real; o primeiro uso deve ser acompanhado operacionalmente.

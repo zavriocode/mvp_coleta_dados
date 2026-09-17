@@ -39,7 +39,7 @@ function criarStorage() {
             .then(() => cb(null, chunk), cb);
         } });
         const escrita = fs.createWriteStream(descritor.path, { flags: 'wx', mode: 0o600, highWaterMark: 65536 });
-        const interromper = () => file.stream.destroy(req.restoreUploadErro || criarErro('O envio foi interrompido. Selecione os arquivos e tente novamente.', 400));
+        const interromper = () => file.stream.destroy(req.restoreUploadErro || criarErro('O envio foi interrompido. Selecione o backup e tente novamente.', 400));
         req.once('aborted', interromper);
         req.once('restore-timeout', interromper);
         if (req.aborted || req.restoreUploadErro) interromper();
@@ -83,7 +83,7 @@ function receberUpload(req, res, next) {
     if (e) {
       await removerArquivo(req.file || req.artefatoRestore).catch(() => {});
       if (e.code === 'LIMIT_FILE_SIZE') e = capacidade.insuficiente();
-      else if (e instanceof multer.MulterError) e = criarErro('Não foi possível receber os arquivos. Selecione um backup e seu arquivo de verificação.', 400);
+      else if (e instanceof multer.MulterError) e = criarErro('Não foi possível receber o backup. Selecione um arquivo .acorda válido e tente novamente.', 400);
     }
     if (!res.headersSent && !req.aborted) next(e);
   };

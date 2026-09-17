@@ -27,32 +27,29 @@ const SCRIPTS = [
   'testarResilienciaMensageria.js'
 ];
 
-function configuracao(nomeBanco) {
-  if (process.env.DATABASE_URL) {
-    const endereco = new URL(process.env.DATABASE_URL);
-    endereco.pathname = '/' + nomeBanco;
-    return { connectionString: endereco.toString() };
+function garantirPostgresLocal() {
+  const host = String(process.env.BANCO_HOST || '').toLowerCase();
+  if (!['localhost', '127.0.0.1', '::1'].includes(host)) {
+    throw new Error('O teste isolado exige BANCO_HOST local e nunca utiliza DATABASE_URL.');
   }
+}
+
+function configuracao(nomeBanco) {
   return {
     host: process.env.BANCO_HOST,
     port: Number(process.env.BANCO_PORTA) || 5432,
     user: process.env.BANCO_USUARIO,
     password: process.env.BANCO_SENHA,
     database: nomeBanco,
-    ssl: process.env.BANCO_SSL === 'true'
+    ssl: false
   };
 }
 
 function urlBanco(nomeBanco) {
-  if (process.env.DATABASE_URL) {
-    const endereco = new URL(process.env.DATABASE_URL);
-    endereco.pathname = '/' + nomeBanco;
-    return endereco.toString();
-  }
   return 'postgresql://' + encodeURIComponent(process.env.BANCO_USUARIO || '') + ':' +
     encodeURIComponent(process.env.BANCO_SENHA || '') + '@' +
     (process.env.BANCO_HOST || '127.0.0.1') + ':' + (process.env.BANCO_PORTA || '5432') +
-    '/' + nomeBanco + (process.env.BANCO_SSL === 'true' ? '?sslmode=require' : '');
+    '/' + nomeBanco;
 }
 
 async function removerBanco(cliente) {
@@ -79,6 +76,7 @@ function executarScript(arquivo, ambiente) {
 }
 
 async function executar() {
+  garantirPostgresLocal();
   const administracao = new pg.Client(configuracao('postgres'));
   let administracaoConectada = false;
   let bancoTeste;

@@ -1,5 +1,9 @@
 # Fase 2 — decisão adicional sobre reconciliação de templates
 
+> **Documento histórico de bloqueio.** A decisão foi posteriormente aprovada e
+> implementada; “não implementada” abaixo descreve apenas aquele momento. Estado
+> final: [../STATUS_FINAL_DO_PROJETO.md](../STATUS_FINAL_DO_PROJETO.md).
+
 Data: 16/09/2026.
 
 Estado: implementação suspensa pela regra de parar diante de nova decisão

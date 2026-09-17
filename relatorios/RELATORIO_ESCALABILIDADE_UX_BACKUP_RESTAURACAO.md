@@ -1,5 +1,11 @@
 # Escalabilidade e UX — backup/restauração
 
+> **Documento histórico de implementação.** As descrições abaixo de múltiplas
+> etapas ou dois arquivos registram a fase em que foram testadas. O fluxo final
+> usa um único `.acorda` e três momentos de UX. Consulte
+> [../STATUS_FINAL_DO_PROJETO.md](../STATUS_FINAL_DO_PROJETO.md) e
+> [RELATORIO_BACKUP_ARQUIVO_UNICO.md](RELATORIO_BACKUP_ARQUIVO_UNICO.md).
+
 Projeto: ACORDA RJ
 
 Data: 17/09/2026

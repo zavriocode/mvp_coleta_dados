@@ -1,5 +1,10 @@
 # Fase 2 — restauração administrativa segura
 
+> **Relatório de implementação da Fase 2.** O empacotamento e a UX evoluíram
+> depois desta entrega para um único `.acorda` e fluxo simplificado. Consulte
+> [RELATORIO_BACKUP_ARQUIVO_UNICO.md](RELATORIO_BACKUP_ARQUIVO_UNICO.md) e
+> [../STATUS_FINAL_DO_PROJETO.md](../STATUS_FINAL_DO_PROJETO.md).
+
 Data: 16/09/2026. Projeto: ACORDA RJ.
 
 Implementação local após as aprovações arquiteturais. Este relatório substitui,
