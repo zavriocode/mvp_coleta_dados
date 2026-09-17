@@ -135,7 +135,7 @@ async function worker() {
     }
     const usuario = { id: process.env.QA_USUARIO_ID };
     const registro = await service.gerar(usuario);
-    verificar(registro.formato === 'custom' && registro.migrations.length === 22, 'Metadados');
+    verificar(registro.formato === 'custom' && registro.migrations.length === 23, 'Metadados');
     // Arquivo pelo mesmo fluxo de geração/download do painel, sem pg_dump paralelo.
     const arquivo = await service.prepararDownload(registro.id);
     await fs.promises.copyFile(arquivo.caminhoArquivo, process.env.QA_ARQUIVO);
@@ -213,9 +213,13 @@ async function principal() {
     // Reconstruir apenas em A descartável o estado anterior para testar upgrade normal.
     await conexaoA.query('ALTER TABLE backups_banco DROP COLUMN versao_postgresql, DROP COLUMN migrations');
     await conexaoA.query("DELETE FROM schema_migrations WHERE versao='022'");
+    await conexaoA.query('DROP SCHEMA recuperacao CASCADE');
+    await conexaoA.query('ALTER TABLE backups_banco DROP COLUMN manifesto');
+    await conexaoA.query("DELETE FROM schema_migrations WHERE versao='023'");
     dir = await fs.promises.mkdtemp(path.join(os.tmpdir(),'backup-completo-qa-'));
     const env = { ...process.env, DATABASE_URL: '', NODE_ENV:'test', BANCO_NOME:a, BANCO_SSL:'false',
       JWT_SECRET:crypto.randomBytes(32).toString('hex'), JWT_TEMPO_EXPIRACAO:'1h', FRONTEND_URL:'http://127.0.0.1',
+      BACKUP_ASSINATURA_CHAVE:crypto.randomBytes(32).toString('hex'),
       QA_ARQUIVO:path.join(dir,'backup.dump'), QA_RESULTADO:path.join(dir,'resultado.json') };
     for (const chave of Object.keys(env)) if (/^(META_|WHATSAPP_|MANYCHAT_)/.test(chave)) env[chave] = 'qa-inativo';
     const url = nome => { const c=acesso(nome); return 'postgresql://'+encodeURIComponent(c.user)+':'+encodeURIComponent(c.password)+'@'+(c.host==='::1'?'[::1]':c.host)+':'+c.port+'/'+nome; };
@@ -243,7 +247,7 @@ async function principal() {
     const registroB = obtido.dados.backups_banco.find(x => String(x.id) === String(esperado.registro.id));
     verificar(registroA.status === 'concluido' && registroB.status === 'processando', 'Diferença temporal auditada');
     // Somente a finalização do próprio backup não existia no snapshot. Nada é ignorado nas outras linhas.
-    for (const k of ['status','nome_arquivo','tamanho_bytes','sha256','concluido_em','versao_postgresql','migrations']) registroA[k] = registroB[k];
+    for (const k of ['status','nome_arquivo','tamanho_bytes','sha256','concluido_em','versao_postgresql','migrations','manifesto']) registroA[k] = registroB[k];
     // PostgreSQL reinterpreta CHECKs (casts de arrays/parênteses) ao restaurar.
     // Comparar a mesma definição após uma passagem pelo parser do próprio servidor,
     // em transação desfeita; não remover operadores/casts com regex permissiva.
@@ -293,6 +297,9 @@ async function principal() {
       verificar(falhaBanco.code !== 0,'Restore inválido não pode declarar sucesso: '+nome);
       assert.deepEqual(await retrato(conexaoB),antesFalha); verificacoes++;
     }
+    // Instala somente o controle externo ao snapshot no banco B novo, não operacional.
+    const controleSql=fs.readFileSync(path.join(raiz,'database/migrations/023_controle_recuperacao.sql'),'utf8').split('ALTER TABLE public.backups_banco')[0];
+    await conexaoB.query(controleSql);
     r = await processo(process.execPath,[__filename,'worker','restaurado'],{...env,BANCO_NOME:b,DATABASE_URL:url(b)});
     assert.equal(r.code,0,r.out+r.err); console.log(r.out.trim());
     console.log('Backup completo isolado: '+verificacoes+' verificações de restauração aprovadas.');

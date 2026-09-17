@@ -31,7 +31,7 @@ async function receber(req, res, next) {
     if (!payload || typeof payload !== 'object' || !Array.isArray(payload.entry)) {
       return res.status(400).json({ mensagem: 'Estrutura do webhook invalida.' });
     }
-    await mensageriaService.processarWebhook(payload);
+    await require('../backups/controleRecuperacao').receberWebhook(payload, mensageriaService.processarWebhook);
     return res.status(200).json({ recebido: true });
   } catch (erro) { return next(erro); }
 }

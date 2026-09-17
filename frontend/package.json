@@ -11,6 +11,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "testar:backups": "node scripts/testarBackupsAdministrativos.js",
+    "testar:restauracao-renderizada": "node scripts/testarRestauracaoRenderizada.js",
     "testar:previa-modelo": "node scripts/testarPreviaModeloMensagem.js",
     "testar:previa-imagem-renderizada": "node scripts/testarPreviaImagemRenderizada.js"
   },

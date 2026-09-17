@@ -48,7 +48,7 @@ function registrarFalha(erro) {
   }));
 }
 
-async function executarAgora() {
+async function executarAdmitido() {
   if (executando || !possuiConfiguracaoMeta()) {
     return { executado: false, motivo: executando ? 'sincronizacao_em_andamento' : 'meta_nao_configurada' };
   }
@@ -75,6 +75,10 @@ async function executarAgora() {
     if (cliente) cliente.release();
     executando = false;
   }
+}
+
+async function executarAgora() {
+  return require('../backups/controleRecuperacao').job('templates', executarAdmitido);
 }
 
 function iniciar() {

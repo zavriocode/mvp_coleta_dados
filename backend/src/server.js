@@ -13,7 +13,8 @@ async function recuperarMensageria() {
   if (recuperacaoMensageriaEmAndamento) return;
   recuperacaoMensageriaEmAndamento = true;
   try {
-    const resultado = await mensageriaService.recuperarProcessamentoPendente();
+    const resultado = await require('./modules/backups/controleRecuperacao').job(
+      'recuperacao_mensageria', () => mensageriaService.recuperarProcessamentoPendente());
     if (resultado.tentativasIndeterminadas || resultado.eventosCorrelacionados) {
       console.info(JSON.stringify({ evento: 'recuperacao_mensageria', resultado }));
     }
@@ -28,6 +29,8 @@ validarAmbiente();
 
 const servidor = aplicacao.listen(porta, function () {
   console.log('Servidor iniciado na porta ' + porta + '.');
+  require('./modules/backups/controleRecuperacao').reconhecerInterrupcao()
+    .catch(() => console.error('Não foi possível verificar recuperação interrompida. Manutenção não será liberada.'));
   sincronizacaoAutomaticaTemplates.iniciar();
   recuperarMensageria();
 });
@@ -35,7 +38,8 @@ const servidor = aplicacao.listen(porta, function () {
 const temporizadorRecuperacaoMensageria = setInterval(recuperarMensageria, 60000);
 temporizadorRecuperacaoMensageria.unref();
 
-servidor.requestTimeout = 30000;
+// Recebimento do upload tem prazo próprio. Demais proteções de headers/conexão permanecem.
+servidor.requestTimeout = Math.max(30000, require('./modules/backups/capacidadeRestore').configuracao().uploadTimeoutMs + 5000);
 servidor.headersTimeout = 65000;
 servidor.keepAliveTimeout = 60000;
 servidor.maxRequestsPerSocket = 1000;

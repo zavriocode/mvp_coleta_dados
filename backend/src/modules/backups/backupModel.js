@@ -19,11 +19,12 @@ async function concluir(id, dados) {
          sha256 = $4,
          versao_postgresql = $5,
          migrations = $6::jsonb,
+         manifesto = $7::jsonb,
          mensagem_erro = NULL,
          concluido_em = CURRENT_TIMESTAMP
      WHERE id = $1`,
     [id, dados.nomeArquivo, dados.tamanhoBytes, dados.sha256,
-      dados.versaoPostgresql, JSON.stringify(dados.migrations)]
+      dados.versaoPostgresql, JSON.stringify(dados.migrations), JSON.stringify(dados.manifesto)]
   );
 }
 
@@ -47,6 +48,7 @@ async function listar() {
       backup.formato,
       backup.versao_postgresql,
       backup.migrations,
+      backup.manifesto,
       backup.tamanho_bytes,
       backup.sha256,
       backup.mensagem_erro,
@@ -70,6 +72,7 @@ async function buscarPorId(id) {
       backup.formato,
       backup.versao_postgresql,
       backup.migrations,
+      backup.manifesto,
       backup.tamanho_bytes,
       backup.sha256,
       backup.mensagem_erro,

@@ -29,6 +29,10 @@ async function autenticarUsuario(requisicao, resposta, proximo) {
 
   try {
     const dadosDoToken = jwt.verify(token, segredoJwt, { algorithms: ['HS256'] });
+    const controle = await require('../modules/backups/controleRecuperacao').estado();
+    if (String(dadosDoToken.auth_epoch ?? 0) !== String(controle.auth_epoch)) {
+      return proximo(criarAppError('Sessão invalidada pela recuperação. Faça novo login.', 401));
+    }
     const usuario = await usuarioModel.buscarPorId(dadosDoToken.id);
 
     if (!usuario || usuario.ativo !== true) {
@@ -36,6 +40,7 @@ async function autenticarUsuario(requisicao, resposta, proximo) {
     }
 
     requisicao.usuario = {
+      auth_epoch: String(controle.auth_epoch),
       id: usuario.id,
       nome: usuario.nome,
       email: usuario.email,

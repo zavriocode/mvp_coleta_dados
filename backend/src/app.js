@@ -46,6 +46,7 @@ aplicacao.use(identificarRequisicao);
 aplicacao.use(compression({ threshold: 1024 }));
 aplicacao.use(limitadores.criarLimitadorGlobal());
 aplicacao.use(criarLimitadorConcorrencia());
+aplicacao.use(require('./modules/backups/controleRecuperacao').middleware);
 aplicacao.use('/api/webhooks/whatsapp', webhookRoutes);
 aplicacao.use(express.json({ limit: '32kb', strict: true }));
 aplicacao.post(
@@ -62,6 +63,7 @@ aplicacao.use('/api/autenticacao', impedirCacheDeDadosPrivados);
 aplicacao.use('/api/autenticacao', autenticacaoRoutes);
 aplicacao.use('/api/admin', impedirCacheDeDadosPrivados);
 aplicacao.use('/api/admin', autenticarUsuario);
+aplicacao.use('/api/admin/restauracoes', require('./modules/backups/restauracaoRoutes'));
 aplicacao.use('/api/admin/contatos', contatoAdminRoutes);
 aplicacao.use('/api/admin/origens', origemRoutes);
 aplicacao.use('/api/admin/campanhas', campanhaRoutes);

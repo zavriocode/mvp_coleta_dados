@@ -27,27 +27,11 @@ async function baixar(requisicao, resposta, proximo) {
   let backup;
   try {
     backup = await backupService.prepararDownload(requisicao.params.id);
-    resposta.setHeader('X-Backup-SHA256', backup.sha256);
-    resposta.setHeader('Content-Type', 'application/octet-stream');
-    resposta.setHeader('Cache-Control', 'private, no-store');
-
-    return resposta.download(
-      backup.caminhoArquivo,
-      backup.nomeArquivo,
-      async function (erro) {
-        try {
-          await backupService.removerTemporario(backup.diretorio);
-        } catch (erroLimpeza) {
-          console.error('Não foi possível remover o backup temporário:', erroLimpeza.message);
-        }
-        if (erro && !resposta.headersSent) {
-          return proximo(erro);
-        }
-        return undefined;
-      }
-    );
+    await require('./pacoteBackup').enviar(resposta,backup.caminhoArquivo,backup.manifesto,backup.nomeArquivo);
   } catch (erro) {
-    return proximo(erro);
+    if (!resposta.headersSent) return proximo(erro);
+  } finally {
+    if(backup)await backupService.removerTemporario(backup.diretorio).catch(()=>console.error('Não foi possível remover o backup temporário.'));
   }
 }
 

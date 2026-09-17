@@ -1,5 +1,94 @@
 # Backup completo restaurável — fase 1
 
+## Atualização consolidada — 17/09/2026
+
+As seções 1 a 8 abaixo preservam os resultados históricos da Fase 1. Expressões
+como “Final” e “não implementado” nessas seções referem-se àquela fase, não ao
+estado posterior do código. O detalhamento atualizado está no
+[relatório de arquivo único e restauração](RELATORIO_BACKUP_ARQUIVO_UNICO.md).
+
+### Funcionalidade atual implementada
+
+- Download em um único arquivo `.acorda`, contendo dump PostgreSQL custom e
+  manifesto assinado. Não é necessário selecionar um arquivo de verificação
+  separado. Assinatura não significa criptografia do conteúdo.
+- O snapshot operacional exclui o schema `recuperacao`, que preserva o controle
+  de manutenção, sessões, operações, auditoria e eventos durante o restore.
+  A descrição histórica de backup sem exclusão de schemas não se aplica a essa
+  evolução.
+- Restauração administrativa com inspeção isolada, confirmação forte, manutenção,
+  drenagem, cópia pré-restore, custódia externa, validação e liberação manual.
+- Interface simplificada para três etapas: **Enviar backup → Preparar →
+  Restaurar e concluir**. Arquivo e credenciais estão juntos; resumo e preparação
+  também. Removidos a tela intermediária e o aceite repetido, mantendo as
+  proteções de segurança no backend.
+- Correção da falsa incompatibilidade causada por posições físicas de colunas
+  removidas e ordenações não determinísticas de objetos do PostgreSQL.
+- Pendências desconhecidas de outra execução são verificadas antes da
+  manutenção. Não são encerradas por idade ou por simples desconexão após
+  admissão do trabalho. Falhas de preparação comunicam a fase persistida e a
+  necessidade de novo login.
+
+### Comprovante para o usuário
+
+Após execução e validação bem-sucedidas, a tela apresenta **“Restauração concluída
+com sucesso”**, com:
+
+- nome e data do backup utilizado;
+- data registrada de conclusão;
+- quantidades de contatos, campanhas e registros do histórico de mensagens;
+- integridade aprovada;
+- situação: aguardando revisão/liberação ou sistema liberado.
+
+As quantidades correspondem ao snapshot validado, não a uma nova contagem ao
+vivo. Reconciliações e alterações posteriores podem mudar os dados atuais.
+Informações ausentes em operações antigas são explicitamente indicadas como
+não registradas, sem inventar nomes, datas ou contagens.
+
+O botão **Conferir dados restaurados** permite consultar nome e telefone dos
+primeiros 100 contatos durante a manutenção, pela rota administrativa somente
+leitura. Após a liberação, abre o cadastro normal. A consulta respeita o novo
+login obrigatório; não restaura novamente nem modifica contatos.
+
+Validação de upload não é restauração concluída. Aborto e cancelamento não
+recebem comprovante de sucesso. Após liberação, esse comprovante exige o
+metadado persistido `restauradoEm`.
+
+### Últimas verificações executadas
+
+Resultados registrados na implementação anterior a esta atualização documental:
+
+- Fase 2 em PostgreSQL temporário: 112 verificações aprovadas.
+- Interface real com API simulada: 44 verificações no fluxo normal e 46 no
+  cenário de falha, incluindo consulta somente leitura e comprovante.
+- Regressões isoladas: backup administrativo 41; webhook 16; resiliência 16
+  verificações em 8 cenários; campanhas 2.421 verificações.
+- Build frontend: aprovado, 74 módulos. Sintaxe backend e `git diff --check`:
+  aprovados na implementação.
+
+Esses testes não comprovam, por si, o resultado de uma restauração manual
+específica do usuário nem constituem validação de produção.
+
+### Arquivos e situação de execução
+
+A última melhoria do comprovante alterou
+`backend/src/modules/backups/restauracaoService.js`,
+`frontend/src/components/RestauracoesAdministrativas.jsx`,
+`frontend/scripts/testarRestauracaoRenderizada.js` e o relatório de arquivo único.
+Não exigiu nova migration. A migration 023 pertence ao controle da Fase 2;
+não foi criada ou aplicada por esta atualização documental.
+
+Na entrega anterior, o processo local não foi reiniciado para preservar os
+artefatos do teste manual. As adições de metadados do backend dependiam do
+próximo reinício controlado. Este pedido atual não reiniciou serviços nem
+reverificou o estado dos processos; não afirma que essas adições já estejam
+carregadas no runtime.
+
+Esta atualização altera somente este relatório. Não executa testes novamente,
+backup, restore, operações no banco, chamadas Meta, commit, push ou deploy.
+
+---
+
 ## 1. Resultado e formatos
 
 **BACKUP COMPLETO VALIDADO COMO RESTAURÁVEL EM AMBIENTE ISOLADO.**

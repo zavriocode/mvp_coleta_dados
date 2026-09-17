@@ -102,16 +102,18 @@ async function executar() {
     });
     verificar(resposta.status === 200, 'Administrador não conseguiu baixar backup concluído.');
     verificar(
-      /^attachment; filename="acorda-rj-completo-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.dump"$/.test(
+      /^attachment; filename="acorda-rj-completo-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.acorda"$/.test(
         resposta.headers.get('content-disposition') || ''
       ),
       'Nome do arquivo de backup não segue o padrão oficial.'
     );
     const buffer = Buffer.from(await resposta.arrayBuffer());
-    verificar(buffer.subarray(0, 5).toString() === 'PGDMP', 'Formato custom ausente.');
+    verificar(buffer.subarray(0, 16).toString() === 'ACORDA_BACKUP_1\n', 'Pacote completo ausente.');
     diretorio = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'teste-backup-'));
     const arquivo = path.join(diretorio, 'teste.dump');
     await fs.promises.writeFile(arquivo, buffer);
+    const verificacao=await require('../src/modules/backups/pacoteBackup').abrir({path:arquivo});
+    verificar(verificacao.assinatura===geracao.corpo.backup.manifesto.assinatura,'Verificação não veio no arquivo');
     const executavelRestore = process.env.PG_RESTORE_CAMINHO || (process.platform === 'win32'
       ? 'C:\\Program Files\\PostgreSQL\\18\\bin\\pg_restore.exe' : 'pg_restore');
     const leitura = childProcess.spawnSync(executavelRestore, ['--file=-', arquivo], {
@@ -144,11 +146,11 @@ async function executar() {
     });
     verificar(historico.status === 200, 'Histórico de backups falhou.');
     const backupExecutado = historico.corpo.backups.find(function (backup) {
-      return backup.sha256 === sha256;
+      return backup.sha256 === verificacao.dados.sha256;
     });
     verificar(Boolean(backupExecutado), 'Histórico não contém a operação executada.');
     verificar(backupExecutado.status === 'concluido', 'Backup não foi marcado como concluído.');
-    verificar(backupExecutado.sha256 === sha256, 'Histórico não preservou o SHA-256.');
+    verificar(backupExecutado.sha256 === verificacao.dados.sha256, 'Histórico não preservou o SHA-256 do conteúdo.');
     verificar(backupExecutado.disponivelParaDownload === false, 'Arquivo temporário continuou disponível após o download.');
     verificar(
       (await fetch(baseUrl + '/api/admin/backups/' + backupId + '/download', { headers: adminHeaders })).status === 410,

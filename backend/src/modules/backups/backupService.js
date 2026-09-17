@@ -6,6 +6,7 @@ const path = require('path');
 const backupModel = require('./backupModel');
 const banco = require('../../config/banco');
 const criarAppError = require('../../utils/AppError');
+const manifestoBackup = require('./manifestoBackup');
 
 const arquivosTemporarios = new Map();
 
@@ -47,7 +48,7 @@ function localizarPgDump() {
 
 function criarNomeArquivo() {
   const data = new Date().toISOString().slice(0, 19).replace('T', '_').replace(/:/g, '-');
-  return 'acorda-rj-completo-' + data + '.dump';
+  return 'acorda-rj-completo-' + data + '.acorda';
 }
 
 function lerInteiro(nome, valorPadrao, minimo, maximo) {
@@ -128,6 +129,7 @@ function normalizarRegistro(registro) {
     formato: registro.formato,
     versaoPostgresql: registro.versao_postgresql,
     migrations: registro.migrations,
+    manifesto: registro.manifesto,
     tamanhoBytes: registro.tamanho_bytes,
     sha256: registro.sha256,
     mensagemErro: registro.mensagem_erro,
@@ -171,6 +173,7 @@ function resumirErro(erro) {
 }
 
 async function gerar(usuario) {
+  manifestoBackup.chave();
   const limiteFila = lerInteiro('BACKUP_MAX_FILA_BANCO', 2, 0, 100);
 
   if (banco.waitingCount > limiteFila) {
@@ -234,6 +237,7 @@ async function gerar(usuario) {
     const caminhoArquivo = path.join(diretorio, nomeArquivo);
     const argumentos = [
       '--format=custom',
+      '--exclude-schema=recuperacao',
       '--blobs',
       '--no-owner',
       '--no-acl',
@@ -263,7 +267,7 @@ async function gerar(usuario) {
     snapshotAberto = true;
     await clienteBloqueio.query("SELECT set_config('idle_in_transaction_session_timeout', $1, true)", [String(limiteMs + 30000)]);
     const snapshot = await clienteBloqueio.query(
-      "SELECT pg_export_snapshot() AS id, current_setting('server_version') AS versao"
+      "SELECT pg_export_snapshot() AS id, current_setting('server_version') AS versao, transaction_timestamp() AS criado_em"
     );
     const migrations = await clienteBloqueio.query(
       'SELECT versao, nome_arquivo, checksum_sha256 FROM public.schema_migrations ORDER BY versao'
@@ -281,7 +285,12 @@ async function gerar(usuario) {
     }
     await fs.promises.chmod(caminhoArquivo, 0o600);
     const sha256 = await calcularSha256(caminhoArquivo);
+    const manifesto = manifestoBackup.assinar({ formato: 'acorda-custom-v1',
+      schemaControleExcluido: 'recuperacao', backupId: String(registroId),
+      criadoEm: snapshot.rows[0].criado_em.toISOString(), tamanhoBytes: estatisticas.size, sha256,
+      versaoPostgresql: snapshot.rows[0].versao, migrations: migrations.rows });
     await backupModel.concluir(registroId, {
+      manifesto,
       nomeArquivo,
       tamanhoBytes: estatisticas.size,
       sha256,
@@ -293,7 +302,8 @@ async function gerar(usuario) {
       caminhoArquivo,
       diretorio,
       nomeArquivo,
-      sha256
+      sha256,
+      manifesto
     });
     diretorio = null;
 
@@ -355,4 +365,5 @@ async function prepararDownload(id) {
   return temporario;
 }
 
-module.exports = { gerar, listar, prepararDownload, removerTemporario };
+module.exports = { gerar, listar, prepararDownload, removerTemporario,
+  calcularSha256, lerConfiguracaoBanco, localizarPgDump, executarPgDump };

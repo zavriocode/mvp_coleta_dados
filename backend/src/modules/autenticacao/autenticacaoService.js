@@ -66,6 +66,29 @@ function validarDadosRecebidos(dadosRecebidos) {
 
 async function realizarLogin(dadosRecebidos, contextoRecebido) {
   validarDadosRecebidos(dadosRecebidos);
+  const controle = require('../backups/controleRecuperacao');
+  const estadoControle = await controle.estado();
+  if (estadoControle.manutencao) {
+    // Não escrever no snapshot operacional durante manutenção.
+    // Limitação persistente de tentativas fica na auditoria preservada.
+    const banco = require('../../config/banco');
+    const contexto = prepararContexto(contextoRecebido);
+    const recentes = await banco.query(`SELECT count(*)::int AS n FROM recuperacao.auditoria
+      WHERE evento='login_manutencao_falhou' AND criado_em > now()-interval '15 minutes'
+      AND dados->>'ip'=$1`, [contexto.enderecoIp]);
+    if (recentes.rows[0].n >= 10) throw criarAppError('Aguarde antes de tentar novamente.', 429);
+    const u = await usuarioModel.buscarPorEmail(normalizarEmail(dadosRecebidos.email));
+    const senhaOk = await bcrypt.compare(dadosRecebidos.senha, u ? u.senha_hash : HASH_COMPARACAO);
+    if (!u || !senhaOk || !u.ativo || u.perfil !== 'administrador' || bloqueioEstaAtivo(u)) {
+      await controle.auditar('login_manutencao_falhou', null, estadoControle.operacao_id, { ip: contexto.enderecoIp });
+      throw criarAppError('Credenciais administrativas inválidas.', 401);
+    }
+    const token = jwt.sign({ id: u.id, email: u.email, perfil: u.perfil, auth_epoch: String(estadoControle.auth_epoch) },
+      process.env.JWT_SECRET || process.env.JWT_SEGREDO,
+      { algorithm: 'HS256', expiresIn: process.env.JWT_TEMPO_EXPIRACAO || process.env.JWT_EXPIRACAO });
+    await controle.auditar('login_manutencao', u.id, estadoControle.operacao_id);
+    return { token, usuario: { id: u.id, nome: u.nome, email: u.email, perfil: u.perfil } };
+  }
 
   const limiteFalhasConta = lerConfiguracaoInteira('LOGIN_LIMITE_CONTA', 5, 3, 20);
   const limiteFalhasIp = lerConfiguracaoInteira('LOGIN_LIMITE_IP', 20, 5, 200);
@@ -148,6 +171,7 @@ async function realizarLogin(dadosRecebidos, contextoRecebido) {
 
   const token = jwt.sign(
     {
+      auth_epoch: String(estadoControle.auth_epoch),
       id: usuario.id,
       email: usuario.email,
       perfil: usuario.perfil

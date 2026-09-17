@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CabecalhoAdministrativo from '../components/CabecalhoAdministrativo';
 import Carregando from '../components/Carregando';
+import RestauracoesAdministrativas from '../components/RestauracoesAdministrativas';
 import MensagemRetorno from '../components/MensagemRetorno';
 import { baixarBackup, gerarBackup, listarBackups } from '../services/backupService';
 import { removerToken } from '../utils/armazenamentoToken';
@@ -137,7 +138,7 @@ function BackupsAdministrativos() {
               <span className="etiqueta-pagina">Proteção dos dados</span>
               <h2>Backup completo</h2>
             </div>
-            <p>Gera uma cópia da estrutura e dos registros do sistema, incluindo contatos, usuários, campanhas e históricos. Guarde o arquivo em local seguro. A recuperação exige suporte técnico; não está disponível neste painel.</p>
+            <p>BACKUPS — Gera uma cópia da estrutura e dos registros operacionais. Baixe e guarde um único arquivo de backup, com a verificação de segurança incluída.</p>
           </div>
           <button className="botao botao-primario" type="button" disabled={gerando} onClick={gerarNovoBackup}>
             {gerando ? 'Processando backup...' : 'Gerar novo backup'}
@@ -146,6 +147,7 @@ function BackupsAdministrativos() {
         </section>
 
         <MensagemRetorno mensagem={mensagem} tipo={tipoMensagem} />
+        <RestauracoesAdministrativas />
 
         <section className="cartao painel-resultados">
           <div className="cabecalho-resultados"><div><h2>Histórico</h2><p>Últimas 50 operações.</p></div></div>
