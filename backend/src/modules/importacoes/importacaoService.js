@@ -1,5 +1,4 @@
 const path = require('path');
-const { Readable } = require('stream');
 const ExcelJS = require('exceljs');
 const importacaoModel = require('./importacaoModel');
 const criarAppError = require('../../utils/AppError');
@@ -126,24 +125,16 @@ function textoCelula(celula) {
 }
 
 async function analisarXlsx(buffer) {
-  const leitor = new ExcelJS.stream.xlsx.WorkbookReader(Readable.from(buffer), {
-    worksheets: 'emit',
-    sharedStrings: 'cache',
-    styles: 'ignore',
-    hyperlinks: 'ignore'
-  });
+  const pasta = new ExcelJS.Workbook();
   const linhas = [];
-  let primeiraPlanilhaEncontrada = false;
 
   try {
-    for await (const planilha of leitor) {
-      if (primeiraPlanilhaEncontrada) {
-        break;
-      }
-
-      primeiraPlanilhaEncontrada = true;
-
-      for await (const linhaExcel of planilha) {
+    // O upload já é um Buffer limitado a 5 MB. O leitor de arquivo resolve
+    // shared strings antes das células, independentemente da ordem do ZIP.
+    await pasta.xlsx.load(buffer, { ignoreNodes: ['drawing', 'picture', 'extLst'] });
+    const planilha = pasta.worksheets[0];
+    if (planilha) {
+      planilha.eachRow({ includeEmpty: true }, function (linhaExcel) {
         const valores = [];
         let indice;
 
@@ -152,7 +143,7 @@ async function analisarXlsx(buffer) {
         }
 
         linhas.push(valores);
-      }
+      });
     }
   } catch (erro) {
     throw criarAppError(
@@ -308,7 +299,14 @@ function validarLinha(linha, telefonesDoArquivo, bairrosAtivos) {
   };
 }
 
-async function preVisualizar(arquivo, nomeOrigem, usuario) {
+async function preVisualizar(arquivo, nomeOrigem, usuario, consentimentoRecebido = false) {
+  if (![undefined, false, true, 'false', 'true'].includes(consentimentoRecebido)) {
+    throw criarAppError('Opção de consentimento migrado inválida.', 400);
+  }
+  const consentimentoMigrado = consentimentoRecebido === true || consentimentoRecebido === 'true';
+  if (consentimentoMigrado && usuario.perfil !== 'administrador') {
+    throw criarAppError('Somente administradores podem reconhecer consentimento prévio.', 403);
+  }
   if (!arquivo) {
     throw criarAppError('Selecione um arquivo de contatos ou uma planilha.', 400);
   }
@@ -318,6 +316,9 @@ async function preVisualizar(arquivo, nomeOrigem, usuario) {
   }
 
   const formato = detectarFormato(arquivo);
+  if (consentimentoMigrado && !['csv', 'xlsx'].includes(formato)) {
+    throw criarAppError('Consentimento migrado está disponível somente para planilhas CSV/XLSX.', 400);
+  }
   let matrizes;
   let objetos;
 
@@ -353,11 +354,13 @@ async function preVisualizar(arquivo, nomeOrigem, usuario) {
     formato,
     nomeOrigem: origemTratada,
     slugOrigem: criarSlug(origemTratada),
-    usuarioId: usuario.id
+    usuarioId: usuario.id,
+    consentimentoMigrado
   }, linhas);
 
   return {
     importacaoId: importacao.id,
+    consentimentoMigrado,
     origem: importacao.origem,
     totalRecebido: linhas.length,
     validos: linhas.filter(function (linha) { return linha.valida; }).length,
@@ -381,7 +384,7 @@ async function confirmar(importacaoIdRecebido, usuario) {
   }
 
   try {
-    return await importacaoModel.confirmar(importacaoId, usuario.id);
+    return await importacaoModel.confirmar(importacaoId, usuario.id, usuario.perfil);
   } catch (erro) {
     if (erro.codigoAplicacao === 'IMPORTACAO_NAO_ENCONTRADA') {
       throw criarAppError('Importação não encontrada.', 404);

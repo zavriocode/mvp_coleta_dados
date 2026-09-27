@@ -152,10 +152,11 @@ async function cadastrarContatoManual(dadosDoContato) {
   });
 }
 
-async function preVisualizarImportacao(arquivo, origem) {
+async function preVisualizarImportacao(arquivo, origem, consentimentoMigrado = false) {
   const formulario = new FormData();
   formulario.append('arquivo', arquivo);
   formulario.append('origem', origem);
+  formulario.append('consentimentoMigrado', String(consentimentoMigrado));
   return requisitar('/api/admin/importacoes/pre-visualizar', {
     method: 'POST', autenticado: true, body: formulario
   });

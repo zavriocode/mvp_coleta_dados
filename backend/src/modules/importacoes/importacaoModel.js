@@ -1,6 +1,7 @@
 const banco = require('../../config/banco');
 const configuracaoImportacao = require('../../config/importacao');
 const historicoContatoModel = require('../contatos/historicoContatoModel');
+const criarAppError = require('../../utils/AppError');
 
 const TAMANHO_LOTE_PRE_VISUALIZACAO = configuracaoImportacao.TAMANHO_LOTE;
 
@@ -209,12 +210,13 @@ async function criarPreVisualizacao(dados, linhas) {
     const importacao = await cliente.query(
       `
         INSERT INTO importacoes (
-          nome_arquivo, formato, origem_id, usuario_id, total_recebido
+          nome_arquivo, formato, origem_id, usuario_id, total_recebido, relatorio
         )
-        VALUES ($1, $2, $3, $4, $5)
+        VALUES ($1, $2, $3, $4, $5, $6::jsonb)
         RETURNING id
       `,
-      [dados.nomeArquivo, dados.formato, origem.id, dados.usuarioId, linhas.length]
+      [dados.nomeArquivo, dados.formato, origem.id, dados.usuarioId, linhas.length,
+        JSON.stringify({ consentimentoMigrado: dados.consentimentoMigrado === true })]
     );
     let inicioLote;
 
@@ -578,7 +580,7 @@ async function processarLinhaIndividual(cliente, linha, origem, usuarioId, relat
   }
 }
 
-async function confirmar(importacaoId, usuarioId) {
+async function confirmar(importacaoId, usuarioId, perfil) {
   const cliente = await banco.connect();
 
   try {
@@ -615,6 +617,11 @@ async function confirmar(importacaoId, usuarioId) {
       const erro = new Error('Importação já processada.');
       erro.codigoAplicacao = 'IMPORTACAO_PROCESSADA';
       throw erro;
+    }
+
+    const consentimentoMigrado = importacao.rows[0].relatorio?.consentimentoMigrado === true;
+    if (consentimentoMigrado && perfil !== 'administrador') {
+      throw criarAppError('Somente administradores podem confirmar consentimento prévio.', 403);
     }
 
     await cliente.query(
@@ -688,6 +695,58 @@ async function confirmar(importacaoId, usuarioId) {
           );
         }
       }
+    }
+
+    if (consentimentoMigrado) {
+      // Somente IDs efetivamente criados nesta transação. ON CONFLICT e contatos
+      // existentes nunca concedem autorização nem substituem recusas/revogações.
+      const migrados = await cliente.query(`
+        INSERT INTO consentimentos (
+          contato_id, contato_id_original, tipo, resposta, texto_apresentado,
+          versao_texto, canal, origem_registro, registrado_por_usuario_id,
+          ativo, estado, origem_id
+        )
+        SELECT contato.id, contato.id, 'mensagens', TRUE,
+          'Consentimento prévio declarado pelo administrador: sistema/base anterior. '
+          || 'Evidência externa: arquivo ' || $3 || '. Não coletado pelo ACORDA RJ.',
+          'consentimento-migrado-v1', 'importacao', 'migracao_legado', $2,
+          TRUE, 'autorizado', $4
+        FROM contatos AS contato
+        WHERE EXISTS (
+          SELECT 1 FROM importacao_linhas AS linha
+          WHERE linha.importacao_id = $1 AND linha.resultado = 'criado'
+            AND linha.contato_id = contato.id
+        )
+          AND contato.bloqueado_para_mensagens = FALSE
+          AND contato.consentimento_whatsapp IS NULL
+          AND NOT EXISTS (SELECT 1 FROM consentimentos c WHERE c.contato_id = contato.id)
+        RETURNING contato_id
+      `, [importacaoId, usuarioId, importacao.rows[0].nome_arquivo, origem.id]);
+      const ids = migrados.rows.map(item => item.contato_id);
+      await cliente.query(`
+        UPDATE contatos SET consentimento_mensagens = TRUE,
+          consentimento_mensagens_em = CURRENT_TIMESTAMP, consentimento_whatsapp = TRUE,
+          consentimentos_atualizados_em = CURRENT_TIMESTAMP
+        WHERE id = ANY($1::bigint[])
+      `, [ids]);
+      await cliente.query(`
+        INSERT INTO historico_contatos (
+          contato_id, tipo_evento, dados_anteriores, dados_novos, origem_id,
+          registrado_por_usuario_id
+        )
+        SELECT id, 'consentimento_migrado', '{}'::jsonb, $2::jsonb, $3, $4
+        FROM contatos WHERE id = ANY($1::bigint[])
+      `, [ids, JSON.stringify({ importacaoId, nomeArquivo: importacao.rows[0].nome_arquivo,
+        origemConsentimento: 'sistema/base anterior', consentimentoWhatsapp: true,
+        coletadoPeloAcordaRJ: false }), origem.id, usuarioId]);
+      relatorio.consentimentoMigrado = true;
+      relatorio.totalConsentimentosMigrados = ids.length;
+      relatorio.origemConsentimento = 'sistema/base anterior';
+      relatorio.administradorResponsavelId = usuarioId;
+      relatorio.importacaoId = importacaoId;
+      relatorio.nomeArquivo = importacao.rows[0].nome_arquivo;
+      relatorio.totalImportado = relatorio.criados;
+      relatorio.registradoEm = (await cliente.query('SELECT CURRENT_TIMESTAMP AS data')).rows[0].data;
     }
 
     await cliente.query(

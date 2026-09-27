@@ -38,6 +38,7 @@ function ImportacaoContatos() {
   const usuario = obterUsuario();
   const usuarioAdministrador = usuario && usuario.perfil === 'administrador';
   const [arquivo, setArquivo] = useState(null);
+  const [consentimentoMigrado, setConsentimentoMigrado] = useState(false);
   const [origem, setOrigem] = useState('');
   const [novaOrigem, setNovaOrigem] = useState('');
   const [origensImportacao, setOrigensImportacao] = useState([]);
@@ -63,6 +64,10 @@ function ImportacaoContatos() {
   useEffect(function () {
     carregarListas();
   }, []);
+
+  useEffect(function () {
+    setPreVisualizacao(null);
+  }, [arquivo, origem, novaOrigem, consentimentoMigrado]);
 
   function tratarErro(erro) {
     if (erro.statusHttp === 401) {
@@ -90,7 +95,7 @@ function ImportacaoContatos() {
 
     setProcessando(true);
     try {
-      const resposta = await preVisualizarImportacao(arquivo, origemInformada);
+      const resposta = await preVisualizarImportacao(arquivo, origemInformada, consentimentoMigrado);
       setPreVisualizacao(resposta.importacao);
       setTipoMensagem('sucesso');
       setMensagem(resposta.mensagem);
@@ -108,6 +113,8 @@ function ImportacaoContatos() {
     try {
       const resposta = await confirmarImportacao(preVisualizacao.importacaoId);
       setRelatorio(resposta.relatorio);
+      setConsentimentoMigrado(false);
+      setPreVisualizacao(null);
       setTipoMensagem('sucesso');
       setMensagem(resposta.mensagem);
       await carregarListas();
@@ -202,12 +209,24 @@ function ImportacaoContatos() {
             )}
             <div className="grupo-campo grupo-arquivo-importacao">
               <span>Arquivo *</span>
-              <input id="arquivo-importacao" className="input-arquivo-oculto" type="file" accept=".vcf,.csv,.xlsx,text/vcard,text/x-vcard,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={function (evento) { setArquivo(evento.target.files[0] || null); }} />
+              <input id="arquivo-importacao" className="input-arquivo-oculto" type="file" disabled={processando} accept=".vcf,.csv,.xlsx,text/vcard,text/x-vcard,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={function (evento) { setArquivo(evento.target.files[0] || null); setConsentimentoMigrado(false); }} />
               <label className="seletor-arquivo" htmlFor="arquivo-importacao">
                 <span className="icone-seletor-arquivo" aria-hidden="true">↑</span>
                 <span><strong>{arquivo ? arquivo.name : 'Escolher arquivo'}</strong><small>O sistema identifica automaticamente arquivos do celular e planilhas.</small></span>
               </label>
             </div>
+            {usuarioAdministrador && (
+              <div className="grupo-campo" style={{ gridColumn: '1 / -1' }}>
+                <label className="opcao-consentimento opcao-consentimento-admin" htmlFor="consentimento-migrado">
+                  <input id="consentimento-migrado" type="checkbox" checked={consentimentoMigrado}
+                    disabled={processando} aria-describedby="ajuda-consentimento-migrado"
+                    onChange={evento => setConsentimentoMigrado(evento.target.checked)} />
+                  Estes contatos já possuem consentimento prévio para receber mensagens no WhatsApp
+                </label>
+                <small id="ajuda-consentimento-migrado">Ao marcar esta opção, você confirma que os contatos desta planilha já possuíam consentimento registrado anteriormente.</small>
+                <small>Para CSV/XLSX. Guarde a planilha original como evidência. Contatos já existentes mantêm suas autorizações e restrições.</small>
+              </div>
+            )}
             <button className="botao botao-primario" disabled={processando} type="submit">
               {processando ? 'Validando...' : 'Pré-visualizar'}
             </button>
@@ -217,6 +236,7 @@ function ImportacaoContatos() {
         {preVisualizacao && !relatorio && (
           <section className="cartao painel-resultados">
             <h2>Pré-visualização</h2>
+            {preVisualizacao.consentimentoMigrado && <p>Consentimento prévio: sistema/base anterior. Aplicável somente aos novos contatos criados nesta importação.</p>}
             <p>{preVisualizacao.totalRecebido} linhas: {preVisualizacao.validos} válidas e {preVisualizacao.invalidos} inválidas.</p>
             <div className="tabela-responsiva">
               <table className="tabela-contatos tabela-importacao">
@@ -252,6 +272,7 @@ function ImportacaoContatos() {
               <span>Ignorados: {relatorio.ignorados}</span>
               <span>Duplicados: {relatorio.duplicados}</span>
               <span>Inválidos: {relatorio.invalidos}</span>
+              {relatorio.consentimentoMigrado && <span>Consentimentos migrados: {relatorio.totalConsentimentosMigrados}</span>}
             </div>
           </section>
         )}

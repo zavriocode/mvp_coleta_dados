@@ -15,7 +15,8 @@ async function preVisualizar(requisicao, resposta, proximo) {
     const resultado = await importacaoService.preVisualizar(
       requisicao.file,
       requisicao.body.origem,
-      requisicao.usuario
+      requisicao.usuario,
+      requisicao.body.consentimentoMigrado
     );
 
     return resposta.status(201).json({

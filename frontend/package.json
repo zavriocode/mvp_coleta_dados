@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "testar:importacao-renderizada": "node scripts/testarImportacaoRenderizada.js",
     "preview": "vite preview",
     "testar:backups": "node scripts/testarBackupsAdministrativos.js",
     "testar:restauracao-renderizada": "node scripts/testarRestauracaoRenderizada.js",

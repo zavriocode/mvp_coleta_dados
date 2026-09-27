@@ -39,6 +39,7 @@
     "testar:fluxo-campanhas-meta": "node scripts/testarFluxoCampanhasMetaIsolado.js",
     "testar:limite-meta": "node scripts/testarSincronizacaoLimiteMeta.js",
     "testar:importacoes": "node scripts/testarImportacoes.js",
+    "testar:consentimento-migrado-isolado": "node scripts/testarConsentimentoMigradoIsolado.js",
     "testar:importacao-carga": "node scripts/testarImportacaoCarga.js",
     "testar:relatorios": "node scripts/testarRelatorios.js",
     "testar:seguranca": "node scripts/testarSegurancaUsuarios.js",
