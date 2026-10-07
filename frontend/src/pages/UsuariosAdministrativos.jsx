@@ -407,7 +407,7 @@ function UsuariosAdministrativos() {
 
             <form className="formulario-filtros" onSubmit={enviar}>
               <CampoFormulario id="nome" rotulo="Nome" valor={dados.nome} aoAlterar={alterar} obrigatorio desabilitado={salvando} />
-              <CampoFormulario id="email" rotulo="Email" tipo="email" valor={dados.email} aoAlterar={alterar} obrigatorio desabilitado={salvando} autoComplete="off" />
+              <CampoFormulario id="email" rotulo="Email" tipo="email" valor={dados.email} aoAlterar={alterar} obrigatorio desabilitado={salvando} autoComplete="off" ajuda="Usado como identificador de acesso ao sistema." />
               <CampoFormulario id="senha" rotulo="Senha inicial" tipo="password" valor={dados.senha} aoAlterar={alterar} obrigatorio desabilitado={salvando} tamanhoMinimo={12} tamanhoMaximo={72} autoComplete="new-password" ajuda="Use pelo menos 12 caracteres." />
               <CampoSelecao id="perfil" rotulo="Perfil de acesso" valor={dados.perfil} aoAlterar={alterar} opcoes={OPCOES_PERFIL} desabilitado={salvando} />
 
