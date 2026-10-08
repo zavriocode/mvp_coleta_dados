@@ -1,2 +1,16 @@
 .vercel
 .env*
+*.dump
+*.acorda
+/backups/
+/exports/
+/uploads/
+/logs/
+/tmp/
+/backend/backups/
+/backend/exports/
+/backend/uploads/
+/backend/logs/
+/backend/tmp/
+/frontend/logs/
+/frontend/tmp/
